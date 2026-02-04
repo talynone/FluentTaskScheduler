@@ -89,13 +89,44 @@ namespace FluentTaskScheduler.Services
                 if (defSettings != null)
                 {
                     model.OnlyIfIdle = defSettings.RunOnlyIfIdle;
+                    try { model.IdleDuration = System.Xml.XmlConvert.ToString(defSettings.IdleSettings.IdleDuration); } catch {}
+                    model.StopOnIdleEnd = defSettings.IdleSettings.StopOnIdleEnd;
+                    
                     model.OnlyIfAC = defSettings.DisallowStartIfOnBatteries;
-                    model.OnlyIfNetwork = defSettings.RunOnlyIfNetworkAvailable;
-                    model.WakeToRun = defSettings.WakeToRun;
+                    model.DisallowStartOnBatteries = defSettings.DisallowStartIfOnBatteries;
                     model.StopOnBattery = defSettings.StopIfGoingOnBatteries;
+                    
+                    model.OnlyIfNetwork = defSettings.RunOnlyIfNetworkAvailable;
+                    try
+                    {
+                        // Safely access Network Settings - this can throw if not defined or version mismatch
+                        if (defSettings.NetworkSettings != null)
+                        {
+                            if (defSettings.NetworkSettings.Id != Guid.Empty)
+                            {
+                                model.NetworkId = defSettings.NetworkSettings.Id.ToString();
+                                try { model.NetworkName = defSettings.NetworkSettings.Name ?? ""; } catch {}
+                            }
+                        }
+                    }
+                    catch { }
+                    
+                    model.WakeToRun = defSettings.WakeToRun;
                     model.RunIfMissed = defSettings.StartWhenAvailable;
                     model.RestartOnFailure = defSettings.RestartCount > 0;
                     model.RestartCount = defSettings.RestartCount;
+                    
+                    model.MultipleInstancesPolicy = defSettings.MultipleInstances switch
+                    {
+                        TaskInstancesPolicy.Parallel => "Parallel",
+                        TaskInstancesPolicy.Queue => "Queue",
+                        TaskInstancesPolicy.StopExisting => "StopExisting",
+                        _ => "IgnoreNew"
+                    };
+                    
+                    model.TaskPriority = (int)defSettings.Priority;
+                    model.DeleteExpiredTaskAfter = defSettings.DeleteExpiredTaskAfter != TimeSpan.Zero;
+                    model.AllowHardTerminate = defSettings.AllowHardTerminate;
                     
                     if (defSettings.ExecutionTimeLimit != TimeSpan.Zero)
                     {
@@ -105,6 +136,49 @@ namespace FluentTaskScheduler.Services
                     if (defSettings.RestartInterval != TimeSpan.Zero)
                     {
                             try { model.RestartInterval = System.Xml.XmlConvert.ToString(defSettings.RestartInterval); } catch {}
+                    }
+                }
+                
+                // SANITY PATCH: Fix SessionStateChangeTrigger using Raw XML
+                // The library sometimes fails to deserialize "Unlock" correctly, defaulting to "Lock".
+                // We trust the XML over the Object Model for this specific property.
+                if (model.TriggersList.Any(t => t.TriggerType == "SessionStateChange"))
+                {
+                    try
+                    {
+                        string rawXml = task.Xml;
+                        var match = System.Text.RegularExpressions.Regex.Match(rawXml, "<StateChange>(.*)</StateChange>");
+                        if (match.Success)
+                        {
+                            string state = match.Groups[1].Value.Trim();
+                            foreach (var t in model.TriggersList.Where(t => t.TriggerType == "SessionStateChange"))
+                            {
+                                t.SessionStateChangeType = state switch
+                                {
+                                    "SessionLock" => "Lock",
+                                    "SessionUnlock" => "Unlock", 
+                                    "RemoteConnect" => "RemoteConnect",
+                                    "RemoteDisconnect" => "RemoteDisconnect",
+                                    "ConsoleConnect" => "Unlock",
+                                    "ConsoleDisconnect" => "Lock",
+                                    _ => "Lock"
+                                };
+                            }
+                        }
+                    }
+                    catch {}
+                }
+
+                // Map User Context
+                if (def.Principal != null)
+                {
+                    if (def.Principal.LogonType == TaskLogonType.ServiceAccount && def.Principal.UserId == "SYSTEM")
+                    {
+                        model.RunAsSystem = true;
+                    }
+                    else if (!string.IsNullOrWhiteSpace(def.Principal.UserId) && def.Principal.UserId != "SYSTEM")
+                    {
+                        model.RunAsUser = def.Principal.UserId;
                     }
                 }
                 
@@ -179,13 +253,40 @@ namespace FluentTaskScheduler.Services
                     if (defSettings != null)
                     {
                         model.OnlyIfIdle = defSettings.RunOnlyIfIdle;
+                        try { model.IdleDuration = System.Xml.XmlConvert.ToString(defSettings.IdleSettings.IdleDuration); } catch {}
+                        model.StopOnIdleEnd = defSettings.IdleSettings.StopOnIdleEnd;
+                        
                         model.OnlyIfAC = defSettings.DisallowStartIfOnBatteries;
-                        model.OnlyIfNetwork = defSettings.RunOnlyIfNetworkAvailable;
-                        model.WakeToRun = defSettings.WakeToRun;
+                        model.DisallowStartOnBatteries = defSettings.DisallowStartIfOnBatteries;
                         model.StopOnBattery = defSettings.StopIfGoingOnBatteries;
+                        
+                        model.OnlyIfNetwork = defSettings.RunOnlyIfNetworkAvailable;
+                        try
+                        {
+                            if (defSettings.NetworkSettings != null && defSettings.NetworkSettings.Id != Guid.Empty)
+                            {
+                                model.NetworkId = defSettings.NetworkSettings.Id.ToString();
+                                model.NetworkName = defSettings.NetworkSettings.Name ?? "";
+                            }
+                        }
+                        catch { }
+                        
+                        model.WakeToRun = defSettings.WakeToRun;
                         model.RunIfMissed = defSettings.StartWhenAvailable;
                         model.RestartOnFailure = defSettings.RestartCount > 0;
                         model.RestartCount = defSettings.RestartCount;
+                        
+                        model.MultipleInstancesPolicy = defSettings.MultipleInstances switch
+                        {
+                            TaskInstancesPolicy.Parallel => "Parallel",
+                            TaskInstancesPolicy.Queue => "Queue",
+                            TaskInstancesPolicy.StopExisting => "StopExisting",
+                            _ => "IgnoreNew"
+                        };
+                        
+                        model.TaskPriority = (int)defSettings.Priority;
+                        model.DeleteExpiredTaskAfter = defSettings.DeleteExpiredTaskAfter != TimeSpan.Zero;
+                        model.AllowHardTerminate = defSettings.AllowHardTerminate;
                         
                         if (defSettings.ExecutionTimeLimit != TimeSpan.Zero)
                         {
@@ -286,7 +387,7 @@ namespace FluentTaskScheduler.Services
             }
         }
 
-        public void RegisterTask(ScheduledTaskModel model)
+        public void RegisterTask(string folderPath, ScheduledTaskModel model)
         {
             using (var ts = new TaskService())
             {
@@ -382,6 +483,36 @@ namespace FluentTaskScheduler.Services
                             et.Subscription = $"<QueryList><Query Id=\"0\" Path=\"{log}\"><Select Path=\"{log}\">{query}</Select></Query></QueryList>";
                             t = et;
                             break;
+                        case "OnIdle":
+                            t = new IdleTrigger();
+                            // Note: Idle duration is set via td.Settings.IdleSettings.IdleDuration later
+                            break;
+                        case "OnLock":
+                        case "OnUnlock":
+                        case "SessionStateChange":
+                            var sscTrigger = new SessionStateChangeTrigger();
+                            // Map the session state type
+                            sscTrigger.StateChange = triggerModel.SessionStateChangeType switch
+                            {
+                                "Lock" => TaskSessionStateChangeType.SessionLock,
+                                "Unlock" => TaskSessionStateChangeType.SessionUnlock,
+                                "RemoteConnect" => TaskSessionStateChangeType.RemoteConnect,
+                                "RemoteDisconnect" => TaskSessionStateChangeType.RemoteDisconnect,
+                                _ => TaskSessionStateChangeType.SessionUnlock // Default to unlock
+                            };
+                            // SessionStateChangeTrigger often requires a UserId to be valid
+                            // If specific user is not set, default to current user for this trigger type
+                            if (string.IsNullOrEmpty(model.RunAsUser) && !model.RunAsSystem)
+                            {
+                                sscTrigger.UserId = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
+                            }
+                            else if (!string.IsNullOrEmpty(model.RunAsUser))
+                            {
+                                sscTrigger.UserId = model.RunAsUser;
+                            }
+                            
+                            t = sscTrigger;
+                            break;
                         default:
                             t = new DailyTrigger { StartBoundary = startTime };
                             break;
@@ -434,9 +565,44 @@ namespace FluentTaskScheduler.Services
 
                 // Apply conditions
                 td.Settings.RunOnlyIfIdle = model.OnlyIfIdle;
-                td.Settings.DisallowStartIfOnBatteries = model.OnlyIfAC;
-                td.Settings.StopIfGoingOnBatteries = model.StopOnBattery; // Use the new property
-                td.Settings.RunOnlyIfNetworkAvailable = model.OnlyIfNetwork;
+                
+                // Idle settings
+                if (!string.IsNullOrWhiteSpace(model.IdleDuration))
+                {
+                    try { td.Settings.IdleSettings.IdleDuration = System.Xml.XmlConvert.ToTimeSpan(model.IdleDuration); } catch {}
+                }
+                td.Settings.IdleSettings.StopOnIdleEnd = model.StopOnIdleEnd;
+                
+                // Battery settings
+                td.Settings.DisallowStartIfOnBatteries = model.DisallowStartOnBatteries || model.OnlyIfAC;
+                td.Settings.StopIfGoingOnBatteries = model.StopOnBattery;
+                
+                // Network settings
+                // IMPORTANT: RunOnlyIfNetworkAvailable MUST be true if a specific NetworkId is set.
+                // Otherwise Task Scheduler throws (29,8):NetworkSettings error.
+                bool hasNetworkId = !string.IsNullOrWhiteSpace(model.NetworkId);
+                td.Settings.RunOnlyIfNetworkAvailable = model.OnlyIfNetwork || hasNetworkId;
+                
+                if (hasNetworkId)
+                {
+                    try
+                    {
+                        td.Settings.NetworkSettings.Id = Guid.Parse(model.NetworkId);
+                        // Setting Name often causes validation error (29,8) if it doesn't match system record perfectly.
+                        // The ID is sufficient for the scheduler.
+                        // if (!string.IsNullOrWhiteSpace(model.NetworkName))
+                        //    td.Settings.NetworkSettings.Name = model.NetworkName;
+                    }
+                    catch { }
+                }
+                else
+                {
+                    // Clear network settings if no ID is provided (to be safe)
+                    // Note: accessing NetworkSettings might auto-create it, so we rely on RunOnlyIfNetworkAvailable being false if needed?
+                    // Actually, getting is fine, setting properties matters. 
+                    // If we don't set Id, it should be fine.
+                }
+                
                 td.Settings.WakeToRun = model.WakeToRun;
 
                 // Apply settings
@@ -467,16 +633,178 @@ namespace FluentTaskScheduler.Services
                         // Invalid format, skip restart settings
                     }
                 }
+                
+                // Multiple instances policy
+                td.Settings.MultipleInstances = model.MultipleInstancesPolicy switch
+                {
+                    "Parallel" => TaskInstancesPolicy.Parallel,
+                    "Queue" => TaskInstancesPolicy.Queue,
+                    "IgnoreNew" => TaskInstancesPolicy.IgnoreNew,
+                    "StopExisting" => TaskInstancesPolicy.StopExisting,
+                    _ => TaskInstancesPolicy.IgnoreNew
+                };
+                
+                // Priority - Map 0-10 to ProcessPriorityClass enum values correctly
+                // Task Scheduler: 0=Realtime, 1=High, 2-3=AboveNormal, 4-6=Normal, 7-8=BelowNormal, 9-10=Idle
+                td.Settings.Priority = model.TaskPriority switch
+                {
+                    0 => System.Diagnostics.ProcessPriorityClass.RealTime,
+                    1 => System.Diagnostics.ProcessPriorityClass.High,
+                    2 => System.Diagnostics.ProcessPriorityClass.AboveNormal,
+                    3 => System.Diagnostics.ProcessPriorityClass.AboveNormal,
+                    4 => System.Diagnostics.ProcessPriorityClass.Normal,
+                    5 => System.Diagnostics.ProcessPriorityClass.Normal,
+                    6 => System.Diagnostics.ProcessPriorityClass.Normal,
+                    7 => System.Diagnostics.ProcessPriorityClass.BelowNormal,
+                    8 => System.Diagnostics.ProcessPriorityClass.BelowNormal,
+                    9 => System.Diagnostics.ProcessPriorityClass.Idle,
+                    10 => System.Diagnostics.ProcessPriorityClass.Idle,
+                    _ => System.Diagnostics.ProcessPriorityClass.Normal
+                };
+                
+                // Cleanup and terminate settings
+                td.Settings.DeleteExpiredTaskAfter = model.DeleteExpiredTaskAfter ? TimeSpan.FromDays(30) : TimeSpan.Zero;
+                td.Settings.AllowHardTerminate = model.AllowHardTerminate;
 
-                // Register with proper flags to ensure task is visible and executable
-                ts.RootFolder.RegisterTaskDefinition(
-                    model.Name, 
-                    td,
-                    TaskCreation.CreateOrUpdate,
-                    null, // Use current user
-                    null, // No password needed for current user
-                    TaskLogonType.InteractiveToken
-                );
+                // Register with proper flags and user context
+                string userId = null;
+                string password = null;
+                TaskLogonType logonType = TaskLogonType.InteractiveToken;
+                
+                if (model.RunAsSystem)
+                {
+                    userId = "SYSTEM";
+                    logonType = TaskLogonType.ServiceAccount;
+                }
+                else if (!string.IsNullOrWhiteSpace(model.RunAsUser))
+                {
+                    userId = model.RunAsUser;
+                    // Note: Password would need to be collected separately for security
+                    // For now, we'll use the current token
+                    logonType = TaskLogonType.InteractiveToken;
+                }
+                
+                try
+                {
+                    TaskFolder targetFolder = ts.RootFolder;
+                    if (!string.IsNullOrWhiteSpace(folderPath) && folderPath != "\\")
+                    {
+                        try 
+                        { 
+                            targetFolder = ts.GetFolder(folderPath); 
+                        } 
+                        catch (System.IO.FileNotFoundException)
+                        {
+                            // Folder doesn't exist, try to create it
+                            try
+                            {
+                                targetFolder = ts.RootFolder.CreateFolder(folderPath);
+                            }
+                            catch
+                            {
+                                // If creation fails, we can't save there. 
+                                // Do NOT fallback to Root silently. Throw.
+                                throw new Exception($"Target folder '{folderPath}' does not exist and could not be created.");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                             // Other errors getting folder? logging/throwing
+                             throw new Exception($"Failed to access target folder '{folderPath}': {ex.Message}");
+                        }
+                    }
+
+                    try
+                    {
+                        targetFolder.RegisterTaskDefinition(
+                            model.Name, 
+                            td,
+                            TaskCreation.CreateOrUpdate,
+                            userId,
+                            password,
+                            logonType
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        // Check if we failed due to Access Denied
+                        // 0x80070005 = E_ACCESSDENIED
+                        if (ex.HResult == -2147024891 || ex.Message.Contains("Access is denied") || ex.Message.Contains("Zugriff verweigert"))
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Access Denied. Initiating SCORCHED EARTH fallback...");
+                            System.Diagnostics.Debug.WriteLine($"Target Folder: {targetFolder.Path}");
+
+                            // SCORCHED EARTH POLICY:
+                            // Do NOT reuse the old TaskDefinition 'td'. It is poisoned with Admin privileges.
+                            // Create a fresh one.
+                            TaskDefinition safeTd = ts.NewTask();
+                            
+                            // Copy SAFE Registration Info
+                            safeTd.RegistrationInfo.Description = td.RegistrationInfo.Description;
+                            safeTd.RegistrationInfo.Author = td.RegistrationInfo.Author;
+                            
+                            // Copy SAFE Settings (Avoid Privilege/User Context settings)
+                            safeTd.Settings.Enabled = td.Settings.Enabled;
+                            // safeTd.Settings.ConvertLegacyRecipes = false; // Invalid property
+                            safeTd.Settings.Compatibility = TaskCompatibility.V2; // Force V2
+                            
+                            // Copy standard settings manually to be safe
+                            safeTd.Settings.MultipleInstances = td.Settings.MultipleInstances;
+                            safeTd.Settings.DisallowStartIfOnBatteries = td.Settings.DisallowStartIfOnBatteries;
+                            safeTd.Settings.StopIfGoingOnBatteries = td.Settings.StopIfGoingOnBatteries;
+                            safeTd.Settings.AllowHardTerminate = td.Settings.AllowHardTerminate;
+                            safeTd.Settings.StartWhenAvailable = td.Settings.StartWhenAvailable;
+                            safeTd.Settings.RunOnlyIfNetworkAvailable = td.Settings.RunOnlyIfNetworkAvailable;
+                            safeTd.Settings.IdleSettings.IdleDuration = td.Settings.IdleSettings.IdleDuration;
+                            safeTd.Settings.IdleSettings.StopOnIdleEnd = td.Settings.IdleSettings.StopOnIdleEnd;
+                            safeTd.Settings.ExecutionTimeLimit = td.Settings.ExecutionTimeLimit;
+                            safeTd.Settings.Priority = td.Settings.Priority;
+                            
+                            // Copy Triggers - BUT STRIP PRINCIPALS
+                            foreach(var oldTrig in td.Triggers)
+                            {
+                                var clone = (Trigger)oldTrig.Clone();
+                                if (clone is SessionStateChangeTrigger sst) sst.UserId = null; // Clear specific user binding
+                                if (clone is LogonTrigger lt) lt.UserId = null; // Clear specific user binding
+                                safeTd.Triggers.Add(clone);
+                            }
+                            
+                            // Copy Actions
+                            foreach(var oldAct in td.Actions)
+                            {
+                                safeTd.Actions.Add((Microsoft.Win32.TaskScheduler.Action)oldAct.Clone());
+                            }
+
+                            // FORCE SAFE PRINCIPAL
+                            safeTd.Principal.RunLevel = TaskRunLevel.LUA; // Standard User
+                            safeTd.Principal.LogonType = TaskLogonType.InteractiveToken; // Interactive
+                            safeTd.Principal.UserId = null; // Force Current User Context
+                            safeTd.Principal.GroupId = null;
+                            
+                            // Retry with the SAFE definition
+                            targetFolder.RegisterTaskDefinition(
+                                model.Name, 
+                                safeTd,
+                                TaskCreation.CreateOrUpdate,
+                                null, // Force Current User
+                                null, // Force Current User
+                                TaskLogonType.InteractiveToken
+                            );
+                        }
+                        else
+                        {
+                            throw;
+                        }
+                    }
+                    System.Diagnostics.Debug.WriteLine($"Successfully registered task: {model.Name}");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"FAILED to register task {model.Name}: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"User: {userId}, LogonType: {logonType}");
+                    System.Diagnostics.Debug.WriteLine($"Inner Exception: {ex.InnerException?.Message}");
+                    throw; // Re-throw to be caught by UI
+                }
             }
         }
 
@@ -726,6 +1054,25 @@ namespace FluentTaskScheduler.Services
             }
             else if (trigger is LogonTrigger) model.TriggerType = "AtLogon";
             else if (trigger is BootTrigger) model.TriggerType = "AtStartup";
+            else if (trigger is IdleTrigger idleTrig)
+            {
+                model.TriggerType = "OnIdle";
+                // Note: IdleDuration is retrieved from TaskDefinition.Settings.IdleSettings in GetTaskDetails
+            }
+            else if (trigger is SessionStateChangeTrigger sscTrig)
+            {
+                model.TriggerType = "SessionStateChange";
+                model.SessionStateChangeType = sscTrig.StateChange switch
+                {
+                    TaskSessionStateChangeType.SessionLock => "Lock",
+                    TaskSessionStateChangeType.SessionUnlock => "Unlock",
+                    TaskSessionStateChangeType.RemoteConnect => "RemoteConnect",
+                    TaskSessionStateChangeType.RemoteDisconnect => "RemoteDisconnect",
+                    TaskSessionStateChangeType.ConsoleConnect => "Unlock", // Treat Console Connect as Unlock
+                    TaskSessionStateChangeType.ConsoleDisconnect => "Lock", // Treat Console Disconnect as Lock
+                    _ => sscTrig.StateChange.ToString() // FALLBACK: Return raw enum name to debug
+                };
+            }
             else if (trigger is EventTrigger et)
             {
                 model.TriggerType = "Event";

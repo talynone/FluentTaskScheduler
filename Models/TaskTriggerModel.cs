@@ -48,6 +48,13 @@ namespace FluentTaskScheduler.Models
         public string RepetitionInterval { get; set; } = "";
         public string RepetitionDuration { get; set; } = "";
 
+        // Idle Trigger
+        public string IdleDuration { get; set; } = "PT10M"; // Default 10 minutes
+
+        // Session State Change Trigger (Lock/Unlock/Connect/Disconnect)
+        public string SessionStateChangeType { get; set; } = "Lock"; // Lock, Unlock, RemoteConnect, RemoteDisconnect
+        
+
         public string Descriptor
         {
             get

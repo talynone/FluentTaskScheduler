@@ -205,8 +205,13 @@ namespace FluentTaskScheduler.Models
         
         // Conditions
         public bool OnlyIfIdle { get; set; }
+        public string IdleDuration { get; set; } = "PT10M"; // Default 10 minutes
+        public bool StopOnIdleEnd { get; set; }
         public bool OnlyIfAC { get; set; }
+        public bool DisallowStartOnBatteries { get; set; }
         public bool OnlyIfNetwork { get; set; }
+        public string NetworkId { get; set; } = ""; // GUID of specific network
+        public string NetworkName { get; set; } = ""; // Name for display
         public bool WakeToRun { get; set; }
         public bool StopOnBattery { get; set; }
         
@@ -216,5 +221,13 @@ namespace FluentTaskScheduler.Models
         public string RestartInterval { get; set; } = "PT1M"; // Default 1 minute
         public int RestartCount { get; set; } = 3;
         public bool RunIfMissed { get; set; }
+        public string MultipleInstancesPolicy { get; set; } = "IgnoreNew"; // Parallel, Queue, IgnoreNew, StopExisting
+        public int TaskPriority { get; set; } = 7; // 0=Realtime to 10=Idle, 7=Normal
+        public bool DeleteExpiredTaskAfter { get; set; }
+        public bool AllowHardTerminate { get; set; } = true;
+        
+        // User Context
+        public string RunAsUser { get; set; } = ""; // Empty = current user
+        public bool RunAsSystem { get; set; } = false;
     }
 }

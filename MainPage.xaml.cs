@@ -551,7 +551,8 @@ namespace FluentTaskScheduler
             EditTaskOnlyIfAC.IsChecked = false;
             EditTaskOnlyIfNetwork.IsChecked = false;
             EditTaskWakeToRun.IsChecked = false;
-            EditTaskStopOnBattery.IsChecked = false;
+            EditTaskStopBatterySwitch.IsChecked = false;
+            EditTaskOnBattery.IsChecked = false;
             EditTaskRunIfMissed.IsChecked = false;
             EditTaskRestartOnFailure.IsChecked = false;
             EditTaskRestartInterval.Text = "1 minute";
@@ -559,6 +560,9 @@ namespace FluentTaskScheduler
 
             // Trigger visibility
             UpdateTriggerPanelVisibility();
+
+            // Populate network dropdown
+            PopulateNetworkList();
 
             TaskEditDialog.XamlRoot = this.Content.XamlRoot;
             await TaskEditDialog.ShowAsync();
@@ -1088,6 +1092,18 @@ namespace FluentTaskScheduler
                 {
                     _isEditMode = true;
                     
+                    // REFRESH DATA: The list model might be stale or lightweight.
+                    // Fetch full details (including XML Sanity Patch) from service.
+                    try 
+                    {
+                        var freshTask = _taskService.GetTaskDetails(_selectedTask.Path);
+                        if (freshTask != null) _selectedTask = freshTask;
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Failed to refresh task details: {ex.Message}");
+                    }
+                    
                     // Populate dialog with existing task data
                     EditTaskName.Text = _selectedTask.Name;
                     EditTaskDescription.Text = _selectedTask.Description;
@@ -1113,6 +1129,8 @@ namespace FluentTaskScheduler
                     
                     // Initialize Triggers List (Deep Copy)
                     _tempTriggers = new ObservableCollection<TaskTriggerModel>();
+                    
+
                     if (_selectedTask.TriggersList != null && _selectedTask.TriggersList.Count > 0)
                     {
                         foreach (var trig in _selectedTask.TriggersList)
@@ -1135,7 +1153,8 @@ namespace FluentTaskScheduler
                                 EventSource = trig.EventSource,
                                 EventId = trig.EventId,
                                 RepetitionInterval = trig.RepetitionInterval,
-                                RepetitionDuration = trig.RepetitionDuration
+                                RepetitionDuration = trig.RepetitionDuration,
+                                SessionStateChangeType = trig.SessionStateChangeType
                             });
                         }
                     }
@@ -1178,6 +1197,37 @@ namespace FluentTaskScheduler
                          EditTaskStopAfter.IsChecked = false;
                          EditTaskStopAfterVal.IsEnabled = false;
                     }
+                    
+                    // Idle duration and restart interval
+                    EditTaskIdleDurationSetting.Text = FormatDurationForDisplay(_selectedTask.IdleDuration);
+                    EditTaskRestartInterval.Text = FormatDurationForDisplay(_selectedTask.RestartInterval);
+
+                    // --- Restore Missing Conditions ---
+                    EditTaskOnlyIfIdle.IsChecked = _selectedTask.OnlyIfIdle;
+                    EditTaskStopOnIdleEnd.IsChecked = _selectedTask.StopOnIdleEnd;
+                    
+                    EditTaskOnlyIfAC.IsChecked = _selectedTask.OnlyIfAC;
+                    EditTaskStopBatterySwitch.IsChecked = _selectedTask.DisallowStartOnBatteries;
+                    EditTaskOnBattery.IsChecked = _selectedTask.StopOnBattery;
+                    
+                    EditTaskOnlyIfNetwork.IsChecked = _selectedTask.OnlyIfNetwork;
+                    EditTaskWakeToRun.IsChecked = _selectedTask.WakeToRun;
+                    
+                    // Restore User Context
+                    EditTaskRunAsUser.Text = _selectedTask.RunAsUser ?? "";
+                    if (_selectedTask.RunAsSystem)
+                    {
+                        RunAsSystem.IsChecked = true;
+                    }
+                    else if (!string.IsNullOrEmpty(_selectedTask.RunAsUser))
+                    {
+                        RunAsSpecificUser.IsChecked = true;
+                    }
+                    else
+                    {
+                        RunAsCurrentUser.IsChecked = true;
+                    }
+                    UserContextRadio_Checked(null, null); // Update UI enabled state
                 }
                 else
                 {
@@ -1206,6 +1256,27 @@ namespace FluentTaskScheduler
                     _tempActions.Add(new TaskActionModel { Command = "notepad.exe" });
                     ActionList.ItemsSource = _tempActions;
                     ActionList.SelectedIndex = 0;
+                    
+                    // Reset Conditions
+                    EditTaskOnlyIfIdle.IsChecked = false;
+                    EditTaskStopOnIdleEnd.IsChecked = true;
+                    EditTaskIdleDurationSetting.Text = "PT10M";
+                    EditTaskOnlyIfAC.IsChecked = true;
+                    EditTaskStopBatterySwitch.IsChecked = true;
+                    EditTaskOnBattery.IsChecked = false;
+                    EditTaskOnlyIfNetwork.IsChecked = false;
+                    EditTaskWakeToRun.IsChecked = false;
+                    RunAsCurrentUser.IsChecked = true;
+                    UserContextRadio_Checked(null, null);
+                }
+                
+                // Populate network dropdown
+                PopulateNetworkList();
+                
+                // Set Selected Network (Must be done AFTER PopulateNetworkList)
+                if (_selectedTask != null && !string.IsNullOrEmpty(_selectedTask.NetworkId))
+                {
+                    SetComboBoxByTag(EditTaskNetworkSelection, _selectedTask.NetworkId);
                 }
                 
                 var result = await TaskEditDialog.ShowAsync();
@@ -1351,13 +1422,31 @@ namespace FluentTaskScheduler
             _isPopulatingTriggerDetails = true;
             TriggerDetailsPanel.Visibility = Visibility.Visible;
             
-            // Populate trigger type
+            // Populate trigger type - handle case mismatch and missing tags
+            bool found = false;
             for (int i = 0; i < EditTaskTriggerType.Items.Count; i++)
             {
-                if ((EditTaskTriggerType.Items[i] as ComboBoxItem)?.Tag?.ToString() == trigger.TriggerType)
+                var item = EditTaskTriggerType.Items[i] as ComboBoxItem;
+                string? tag = item?.Tag?.ToString();
+                if (string.Equals(tag, trigger.TriggerType, StringComparison.OrdinalIgnoreCase))
                 {
                     EditTaskTriggerType.SelectedIndex = i;
+                    found = true;
                     break;
+                }
+            }
+            
+            // If not found by tag, try by content as fallback
+            if (!found)
+            {
+                for (int i = 0; i < EditTaskTriggerType.Items.Count; i++)
+                {
+                    var item = EditTaskTriggerType.Items[i] as ComboBoxItem;
+                    if (string.Equals(item?.Content?.ToString(), trigger.TriggerType, StringComparison.OrdinalIgnoreCase))
+                    {
+                        EditTaskTriggerType.SelectedIndex = i;
+                        break;
+                    }
                 }
             }
             
@@ -1436,6 +1525,25 @@ namespace FluentTaskScheduler
                 EditTaskEventId.Text = trigger.EventId?.ToString() ?? "";
             }
             
+            // Idle Trigger
+            if (trigger.TriggerType == "OnIdle")
+            {
+                EditTaskIdleDuration.Text = trigger.IdleDuration;
+            }
+            
+            // Session State Trigger
+            if (trigger.TriggerType == "SessionStateChange")
+            {
+                EditTaskSessionStateType.SelectedIndex = trigger.SessionStateChangeType switch
+                {
+                    "Lock" => 0,
+                    "Unlock" => 1,
+                    "RemoteConnect" => 2,
+                    "RemoteDisconnect" => 3,
+                    _ => 0
+                };
+            }
+            
             // Repetition
             SetComboBoxByTag(EditTaskRepetitionInterval, trigger.RepetitionInterval);
             SetComboBoxByTag(EditTaskRepetitionDuration, trigger.RepetitionDuration);
@@ -1448,6 +1556,11 @@ namespace FluentTaskScheduler
             BtnMoveTriggerDown.IsEnabled = index >= 0 && index < _tempTriggers.Count - 1;
             
             _isPopulatingTriggerDetails = false;
+        }
+
+        private void EditTaskDailyRecurrence_Checked(object sender, RoutedEventArgs e)
+        {
+            if (DailyInterval != null) DailyInterval.IsEnabled = EditTaskDailyRecurrence.IsChecked == true;
         }
 
         private void BtnAddTrigger_Click(object sender, RoutedEventArgs e)
@@ -1576,6 +1689,27 @@ namespace FluentTaskScheduler
                 trigger.EventId = int.TryParse(EditTaskEventId.Text, out int eid) ? eid : null;
             }
             
+            // Idle Trigger
+            if (trigger.TriggerType == "OnIdle")
+            {
+                trigger.IdleDuration = EditTaskIdleDuration.Text;
+            }
+            
+            // Session State Change Trigger
+            // Session State Change Trigger
+            if (trigger.TriggerType == "SessionStateChange")
+            {
+                // Brute force saving to match brute force reading
+                trigger.SessionStateChangeType = EditTaskSessionStateType.SelectedIndex switch
+                {
+                    0 => "Lock",
+                    1 => "Unlock", 
+                    2 => "RemoteConnect",
+                    3 => "RemoteDisconnect",
+                    _ => "Lock"
+                };
+            }
+            
             // Repetition
             trigger.RepetitionInterval = (EditTaskRepetitionInterval.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
             trigger.RepetitionDuration = (EditTaskRepetitionDuration.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
@@ -1583,15 +1717,38 @@ namespace FluentTaskScheduler
 
         private void SetComboBoxByTag(ComboBox comboBox, string tag)
         {
+            if (comboBox == null) return;
+            string cleanTag = tag?.Trim('{', '}'); // Normalize GUIDs by stripping braces
+            
+            // Try matching Tag first (case-insensitive & GUID-safe)
             for (int i = 0; i < comboBox.Items.Count; i++)
             {
-                if ((comboBox.Items[i] as ComboBoxItem)?.Tag?.ToString() == tag)
+                var item = comboBox.Items[i] as ComboBoxItem;
+                string itemTag = item?.Tag?.ToString();
+                string cleanItemTag = itemTag?.Trim('{', '}');
+                
+                if (string.Equals(itemTag, tag, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(cleanItemTag, cleanTag, StringComparison.OrdinalIgnoreCase))
                 {
                     comboBox.SelectedIndex = i;
                     return;
                 }
             }
-            comboBox.SelectedIndex = 0;
+            
+            // Fallback: Try matching Content (case-insensitive)
+            for (int i = 0; i < comboBox.Items.Count; i++)
+            {
+                var item = comboBox.Items[i] as ComboBoxItem;
+                if (string.Equals(item?.Content?.ToString(), tag, StringComparison.OrdinalIgnoreCase))
+                {
+                    comboBox.SelectedIndex = i;
+                    return;
+                }
+            }
+
+            // Default
+            if (comboBox.Items.Count > 0)
+                comboBox.SelectedIndex = 0;
         }
 
         private void ToggleSwitch_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
@@ -1605,60 +1762,41 @@ namespace FluentTaskScheduler
         }
 
         private void ToggleSwitch_Toggled(object sender, RoutedEventArgs e)
-    {
-        // CRITICAL: Don't process toggles during filtering - this was causing tasks to be enabled/disabled when changing filters!
-        if (_isApplyingFilters || _isLoading)
-            return;
-
-        // Safety check for null sender
-        if (sender is not ToggleSwitch toggle)
-            return;
-
-        // During virtualization, DataContext might be null or not yet set
-        if (toggle.DataContext is not ScheduledTaskModel task)
-            return;
-
-        // Prevent redundant operations during data binding/virtualization
-        if (task.IsEnabled == toggle.IsOn)
-            return;
-
-        // CRITICAL: Only process if user actually interacted with this toggle
-        if (!_userInteractedToggles.ContainsKey(task.Path) || !_userInteractedToggles[task.Path])
         {
-            System.Diagnostics.Debug.WriteLine($"Ignoring toggle for {task.Name} - no user interaction detected");
-            return;
-        }
+            // CRITICAL: Don't process toggles during loading or filtering
+            if (_isLoading || _isApplyingFilters)
+                return;
 
-        // Clear the interaction flag
-        _userInteractedToggles[task.Path] = false;
+            if (sender is not ToggleSwitch toggle || toggle.DataContext is not ScheduledTaskModel task)
+                return;
 
-        try
-        {
-            // Update the model first
-            task.IsEnabled = toggle.IsOn;
-            
-            // Then update the service
-            if (toggle.IsOn)
+            // Simple check to see if the state actually changed compared to the model
+            // This avoids redundant updates from binding
+            if (task.IsEnabled == toggle.IsOn)
+                return;
+
+            try
             {
-                _taskService.EnableTask(task.Path);
-                task.State = "Ready";
+                // Update the model and service
+                task.IsEnabled = toggle.IsOn;
+                
+                if (toggle.IsOn)
+                {
+                    _taskService.EnableTask(task.Path);
+                    task.State = "Ready";
+                }
+                else
+                {
+                    _taskService.DisableTask(task.Path);
+                    task.State = "Disabled";
+                }
             }
-            else
+            catch (System.Exception ex)
             {
-                _taskService.DisableTask(task.Path);
-                task.State = "Disabled";
+                System.Diagnostics.Debug.WriteLine($"Error toggling task: {ex.Message}");
+                // No notification here to avoid flickering, but usually the UI will reflect the state on refresh
             }
         }
-        catch (System.Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Error toggling task: {ex.Message}");
-            // Revert toggle on error, but protect against re-entry
-            var currentState = toggle.IsOn;
-            toggle.Toggled -= ToggleSwitch_Toggled;
-            toggle.IsOn = !currentState;
-            toggle.Toggled += ToggleSwitch_Toggled;
-        }
-    }
 
         private void SettingsButton_Click(object sender, RoutedEventArgs e)
         {
@@ -1693,26 +1831,51 @@ namespace FluentTaskScheduler
                     
                     // Conditions
                     OnlyIfIdle = EditTaskOnlyIfIdle.IsChecked ?? false,
+                    IdleDuration = ParseDurationFromInput(EditTaskIdleDurationSetting.Text),
+                    StopOnIdleEnd = EditTaskStopOnIdleEnd.IsChecked ?? false,
                     OnlyIfAC = EditTaskOnlyIfAC.IsChecked ?? false,
+                    DisallowStartOnBatteries = EditTaskStopBatterySwitch.IsChecked ?? false,
                     OnlyIfNetwork = EditTaskOnlyIfNetwork.IsChecked ?? false,
+                    NetworkId = (EditTaskNetworkSelection.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "",
+                    NetworkName = (EditTaskNetworkSelection.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "",
                     WakeToRun = EditTaskWakeToRun.IsChecked ?? false,
-                    StopOnBattery = EditTaskStopOnBattery.IsChecked ?? false,
+                    StopOnBattery = EditTaskOnBattery.IsChecked ?? false,
                     
                     // Settings
                     StopIfRunsLongerThan = EditTaskStopAfter.IsChecked == true ? ((EditTaskStopAfterVal.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "PT72H") : "",
                     RunIfMissed = EditTaskRunIfMissed.IsChecked ?? false,
+                    MultipleInstancesPolicy = (EditTaskMultipleInstances.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "IgnoreNew",
+                    TaskPriority = int.TryParse((EditTaskPriority.SelectedItem as ComboBoxItem)?.Tag?.ToString(), out var prio) ? prio : 7,
+                    DeleteExpiredTaskAfter = EditTaskDeleteExpired.IsChecked ?? false,
+                    AllowHardTerminate = EditTaskAllowHardTerminate.IsChecked ?? true,
                     RestartOnFailure = EditTaskRestartOnFailure.IsChecked ?? false,
-                    RestartInterval = ParseRestartInterval(),
-                    RestartCount = int.TryParse(EditTaskRestartCount.Text, out var count) ? count : 3
+                    RestartInterval = ParseDurationFromInput(EditTaskRestartInterval.Text),
+                    RestartCount = int.TryParse(EditTaskRestartCount.Text, out var count) ? count : 3,
+                    
+                    // User Context
+                    RunAsSystem = RunAsSystem.IsChecked ?? false,
+                    RunAsUser = RunAsSpecificUser.IsChecked == true ? EditTaskRunAsUser.Text : ""
                 };
 
+                // Register first, then delete old if needed (renaming)
+                // Register first, then delete old if needed (renaming)
+                string folder = _currentFolderPath;
+                // Use source/selected task folder ONLY if Editing. If Cloning, use current folder.
                 if (_isEditMode && _selectedTask != null)
                 {
-                    // Delete old task and create new one with updated values
-                    _taskService.DeleteTask(_selectedTask.Path);
+                    try 
+                    {
+                        folder = System.IO.Path.GetDirectoryName(_selectedTask.Path);
+                    } catch {}
                 }
+
+                await Task.Run(() => _taskService.RegisterTask(folder, newTask));
                 
-                _taskService.RegisterTask(newTask);
+                if (_isEditMode && _selectedTask != null && _selectedTask.Name != newTask.Name)
+                {
+                    // If name changed, delete old task
+                    try { _taskService.DeleteTask(_selectedTask.Path); } catch {}
+                }
                 
                 // Defer LoadTasks to avoid collection modification issues
                 _dispatcherQueue.TryEnqueue(() => LoadTasks());
@@ -1727,11 +1890,29 @@ namespace FluentTaskScheduler
                     System.IO.File.AppendAllText(logPath, logContent);
                 }
                 catch { }
-
+                
                 System.Diagnostics.Debug.WriteLine($"Error creating task: {ex.Message}");
                 System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
                 
-                // Cancel dialog close - error is logged to crash_log.txt
+                // Show error to user - schedule on UI thread but don't block
+                var errorMessage = ex.Message;
+                _dispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, async () =>
+                {
+                    try
+                    {
+                        var errorDialog = new ContentDialog
+                        {
+                            Title = "Error Saving Task",
+                            Content = $"Failed to save task:\n\n{errorMessage}\n\nPlease check your inputs.",
+                            CloseButtonText = "OK",
+                            XamlRoot = this.XamlRoot
+                        };
+                        await errorDialog.ShowAsync();
+                    }
+                    catch { /* Ignore errors showing error dialog */ }
+                });
+                
+                // Cancel dialog close
                 args.Cancel = true;
             }
         }
@@ -1945,6 +2126,9 @@ namespace FluentTaskScheduler
 
             try
             {
+                // Must hide the current dialog before opening another one (Success/Error)
+                TaskDetailsDialog.Hide();
+
                 var savePicker = new Windows.Storage.Pickers.FileSavePicker();
                 var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.m_window);
                 WinRT.Interop.InitializeWithWindow.Initialize(savePicker, hwnd);
@@ -1966,6 +2150,11 @@ namespace FluentTaskScheduler
                     };
                     await successDialog.ShowAsync();
                 }
+                else
+                {
+                    // User cancelled - optionally re-show details? 
+                    // For now, let's just leave it closed as it's cleaner than risking recursive ShowAsync loops.
+                }
             }
             catch (Exception ex)
             {
@@ -1980,88 +2169,6 @@ namespace FluentTaskScheduler
             }
         }
 
-        private async void CloneTask_Click(object sender, RoutedEventArgs e)
-        {
-            if (_selectedTask == null) return;
-
-            try
-            {
-                TaskDetailsDialog.Hide();
-
-                _isEditMode = false; // New task mode
-
-                // Pre-fill with cloned data
-                EditTaskName.Text = _selectedTask.Name + " (Copy)";
-                EditTaskDescription.Text = _selectedTask.Description;
-                EditTaskAuthor.Text = _selectedTask.Author;
-                EditTaskEnabled.IsOn = _selectedTask.IsEnabled;
-                EditTaskRunWithHighestPrivileges.IsChecked = _selectedTask.RunWithHighestPrivileges;
-
-                // Clone Actions
-                _tempActions = new ObservableCollection<TaskActionModel>();
-                foreach (var act in _selectedTask.Actions)
-                {
-                    _tempActions.Add(new TaskActionModel
-                    {
-                        Command = act.Command,
-                        Arguments = act.Arguments,
-                        WorkingDirectory = act.WorkingDirectory
-                    });
-                }
-                ActionList.ItemsSource = _tempActions;
-                if (_tempActions.Count > 0) ActionList.SelectedIndex = 0;
-
-                // Clone Triggers
-                _tempTriggers = new ObservableCollection<TaskTriggerModel>();
-                foreach (var trig in _selectedTask.TriggersList)
-                {
-                    _tempTriggers.Add(new TaskTriggerModel
-                    {
-                        TriggerType = trig.TriggerType,
-                        ScheduleInfo = trig.ScheduleInfo,
-                        DailyInterval = trig.DailyInterval,
-                        WeeklyInterval = trig.WeeklyInterval,
-                        WeeklyDays = new List<string>(trig.WeeklyDays),
-                        MonthlyIsDayOfWeek = trig.MonthlyIsDayOfWeek,
-                        MonthlyMonths = new List<string>(trig.MonthlyMonths),
-                        MonthlyDays = new List<int>(trig.MonthlyDays),
-                        MonthlyWeek = trig.MonthlyWeek,
-                        MonthlyDayOfWeek = trig.MonthlyDayOfWeek,
-                        ExpirationDate = trig.ExpirationDate,
-                        RandomDelay = trig.RandomDelay,
-                        EventLog = trig.EventLog,
-                        EventSource = trig.EventSource,
-                        EventId = trig.EventId,
-                        RepetitionInterval = trig.RepetitionInterval,
-                        RepetitionDuration = trig.RepetitionDuration
-                    });
-                }
-                TriggerList.ItemsSource = _tempTriggers;
-                if (_tempTriggers.Count > 0) TriggerList.SelectedIndex = 0;
-
-                // Clone Conditions
-                EditTaskOnlyIfIdle.IsChecked = _selectedTask.OnlyIfIdle;
-                EditTaskOnlyIfAC.IsChecked = _selectedTask.OnlyIfAC;
-                EditTaskOnlyIfNetwork.IsChecked = _selectedTask.OnlyIfNetwork;
-                EditTaskWakeToRun.IsChecked = _selectedTask.WakeToRun;
-                EditTaskStopOnBattery.IsChecked = _selectedTask.StopOnBattery;
-
-                // Clone Settings
-                SetComboBoxByTag(EditTaskStopAfterVal, _selectedTask.StopIfRunsLongerThan);
-                EditTaskStopAfter.IsChecked = !string.IsNullOrEmpty(_selectedTask.StopIfRunsLongerThan) && _selectedTask.StopIfRunsLongerThan != "PT0S";
-                EditTaskStopAfterVal.IsEnabled = EditTaskStopAfter.IsChecked ?? false;
-                EditTaskRunIfMissed.IsChecked = _selectedTask.RunIfMissed;
-                EditTaskRestartOnFailure.IsChecked = _selectedTask.RestartOnFailure;
-                EditTaskRestartInterval.Text = _selectedTask.RestartInterval;
-                EditTaskRestartCount.Value = _selectedTask.RestartCount;
-
-                await TaskEditDialog.ShowAsync();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error cloning task: {ex.Message}");
-            }
-        }
 
         private string ParseRestartInterval()
         {
@@ -2089,9 +2196,86 @@ namespace FluentTaskScheduler
             return "PT1M"; // Default fallback
         }
 
+        /// <summary>
+        /// Convert ISO 8601 duration to user friendly format
+        /// PT5M -> "5m", PT1H -> "1h", PT30S -> "30s", P1D -> "1d"
+        /// </summary>
+        private string FormatDurationForDisplay(string isoDuration)
+        {
+            if (string.IsNullOrWhiteSpace(isoDuration) || isoDuration == "PT0S")
+                return "";
+            
+            try
+            {
+                // Parse ISO 8601 duration
+                var duration = System.Xml.XmlConvert.ToTimeSpan(isoDuration);
+                
+                if (duration.TotalDays >= 1 && duration.TotalDays % 1 == 0)
+                    return $"{(int)duration.TotalDays}d";
+                if (duration.TotalHours >= 1 && duration.TotalHours % 1 == 0)
+                    return $"{(int)duration.TotalHours}h";
+                if (duration.TotalMinutes >= 1 && duration.TotalMinutes % 1 == 0)
+                    return $"{(int)duration.TotalMinutes}m";
+                if (duration.TotalSeconds >= 1)
+                    return $"{(int)duration.TotalSeconds}s";
+            }
+            catch
+            {
+                // If parsing fails, return empty
+            }
+            
+            return "";
+        }
+
+        /// <summary>
+        /// Convert user friendly format to ISO 8601 duration
+        /// "5m" -> PT5M, "1h" -> PT1H, "30s" -> PT30S, "1d" -> P1D
+        /// </summary>
+        private string ParseDurationFromInput(string input)
+        {
+            var text = input?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(text))
+                return "PT0S";
+            
+            // Already ISO 8601?
+            if (text.StartsWith("PT") || text.StartsWith("P"))
+                return text;
+            
+            // Parse number and unit
+            if (int.TryParse(new string(text.Where(char.IsDigit).ToArray()), out var value))
+            {
+                var lowerText = text.ToLower();
+                if (lowerText.EndsWith("d"))
+                    return $"P{value}D";
+                if (lowerText.EndsWith("h"))
+                    return $"PT{value}H";
+                if (lowerText.EndsWith("m") || lowerText.Contains("min"))
+                    return $"PT{value}M";
+                if (lowerText.EndsWith("s") || lowerText.Contains("sec"))
+                    return $"PT{value}S";
+            }
+            
+            return "PT0S"; // Fallback
+        }
+
         private void EditTaskTriggerType_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             UpdateTriggerPanelVisibility();
+        }
+        
+        private void RunAsSystem_Click(object sender, RoutedEventArgs e)
+        {
+            // Show warning when SYSTEM is selected
+            SystemUserWarning.IsOpen = RunAsSystem.IsChecked == true;
+        }
+        
+        private void UserContextRadio_Checked(object sender, RoutedEventArgs e)
+        {
+            // Enable username textbox only when "Run as specific user" is checked
+            if (EditTaskRunAsUser != null)
+            {
+                EditTaskRunAsUser.IsEnabled = RunAsSpecificUser.IsChecked == true;
+            }
         }
 
         private void UpdateTriggerPanelVisibility()
@@ -2104,11 +2288,13 @@ namespace FluentTaskScheduler
             PanelWeekly.Visibility = tag == "Weekly" ? Visibility.Visible : Visibility.Collapsed;
             PanelMonthly.Visibility = tag == "Monthly" ? Visibility.Visible : Visibility.Collapsed;
             if (PanelEvent != null) PanelEvent.Visibility = tag == "Event" ? Visibility.Visible : Visibility.Collapsed;
+            if (PanelIdle != null) PanelIdle.Visibility = tag == "OnIdle" ? Visibility.Visible : Visibility.Collapsed;
+            if (PanelSessionState != null) PanelSessionState.Visibility = tag == "SessionStateChange" ? Visibility.Visible : Visibility.Collapsed;
             
             // Hide Start Date/Time for events that don't use it
             if (PanelStartTime != null)
             {
-                bool showStart = tag != "Event" && tag != "AtLogon" && tag != "AtStartup";
+                bool showStart = tag != "Event" && tag != "AtLogon" && tag != "AtStartup" && tag != "OnIdle" && tag != "SessionStateChange";
                 PanelStartTime.Visibility = showStart ? Visibility.Visible : Visibility.Collapsed;
             }
         }
@@ -2209,6 +2395,84 @@ namespace FluentTaskScheduler
                 new TaskHistoryEntry { Time = "Test", Result = "Test", ExitCode = "0", Message = "This is a test entry" }
             };
             await TaskHistoryDialog.ShowAsync();
+        }
+        private void PopulateNetworkList()
+        {
+            if (EditTaskNetworkSelection == null) return;
+
+            // Preserve current selection if possible
+            var currentSelection = (EditTaskNetworkSelection.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+            
+            EditTaskNetworkSelection.Items.Clear();
+            EditTaskNetworkSelection.Items.Add(new ComboBoxItem { Content = "Any network", Tag = "", IsSelected = true });
+
+            var networks = new System.Collections.Generic.Dictionary<string, string>(); // Id -> Name
+
+            // 1. Try Registry for ALL known profiles (Standard User might be denied access here)
+            try
+            {
+                using (var baseKey = Microsoft.Win32.RegistryKey.OpenBaseKey(Microsoft.Win32.RegistryHive.LocalMachine, Microsoft.Win32.RegistryView.Registry64))
+                using (var key = baseKey.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\NetworkList\Profiles"))
+                {
+                    if (key != null)
+                    {
+                        foreach (var subKeyName in key.GetSubKeyNames())
+                        {
+                            try
+                            {
+                                using (var subKey = key.OpenSubKey(subKeyName))
+                                {
+                                    if (subKey != null)
+                                    {
+                                        var name = subKey.GetValue("ProfileName") as string;
+                                        if (!string.IsNullOrWhiteSpace(name))
+                                        {
+                                            networks[subKeyName] = name; // GUID -> Name
+                                        }
+                                    }
+                                }
+                            }
+                            catch {}
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error reading network profiles from registry: {ex.Message}");
+            }
+
+            // REMOVED: NetworkInterface.GetAllNetworkInterfaces() returns Interface IDs, not Profile IDs.
+            // Task Scheduler requires Profile IDs. Using Interface IDs causes (28,8):NetworkSettings validation error.
+            /*
+            try
+            {
+                foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+                {
+                   // ... code removed ...
+                }
+            }
+            catch (Exception ex) { ... }
+            */
+
+            // Populate UI
+            foreach (var kvp in networks)
+            {
+                EditTaskNetworkSelection.Items.Add(new ComboBoxItem { Content = kvp.Value, Tag = kvp.Key });
+            }
+
+            // Restore selection
+            if (!string.IsNullOrEmpty(currentSelection))
+            {
+                for (int i = 0; i < EditTaskNetworkSelection.Items.Count; i++)
+                {
+                    if ((EditTaskNetworkSelection.Items[i] as ComboBoxItem)?.Tag?.ToString() == currentSelection)
+                    {
+                        EditTaskNetworkSelection.SelectedIndex = i;
+                        break;
+                    }
+                }
+            }
         }
     }
 }

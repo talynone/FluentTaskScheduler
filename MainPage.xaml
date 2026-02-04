@@ -261,7 +261,6 @@
                         <Button x:Name="RunTaskButton" Content="Run Now" Click="RunTask_Click" Style="{StaticResource AccentButtonStyle}"/>
                         <Button x:Name="StopTaskButton" Content="Stop" Click="StopTask_Click"/>
                         <Button x:Name="EditTaskButton" Content="Edit" Click="EditTask_Click"/>
-                        <Button x:Name="CloneTaskButton" Content="Clone" Click="CloneTask_Click"/>
                         <Button x:Name="ExportTaskButton" Content="Export" Click="ExportTask_Click"/>
                         <Button x:Name="EditXmlButton" Content="Edit XML" Click="EditXml_Click"/>
                         <Button x:Name="DeleteTaskButton" Content="Delete" Click="DeleteTask_Click" />
@@ -325,6 +324,7 @@
                     <ComboBoxItem Content="At Startup" Tag="AtStartup"/>
                     <ComboBoxItem Content="One Time" Tag="Once"/>
                     <ComboBoxItem Content="On an event" Tag="Event"/>
+                    <ComboBoxItem Content="On Workstation Lock/Unlock" Tag="SessionStateChange"/>
                 </ComboBox>
                 <StackPanel Spacing="8" Margin="0,8,0,0">
                      <StackPanel x:Name="PanelStartTime" Spacing="16">
@@ -357,11 +357,11 @@
                 </StackPanel>
 
                 <!-- Daily Trigger -->
-                <StackPanel x:Name="PanelDaily" Visibility="Collapsed" Spacing="8" Margin="0,4,0,0">
+                <StackPanel x:Name="PanelDaily" Visibility="Collapsed" Spacing="8">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <TextBlock Text="Recur every" VerticalAlignment="Center"/>
-                        <TextBox x:Name="DailyInterval" Text="1" InputScope="Number" Width="60"/>
-                        <TextBlock Text="days" VerticalAlignment="Center"/>
+                        <CheckBox x:Name="EditTaskDailyRecurrence" Content="Recur every" IsChecked="True" Checked="EditTaskDailyRecurrence_Checked" Unchecked="EditTaskDailyRecurrence_Checked"/>
+                        <TextBox x:Name="DailyInterval" Width="80" Text="1"/>
+                        <TextBlock Text="day(s)" VerticalAlignment="Center"/>
                     </StackPanel>
                 </StackPanel>
 
@@ -451,6 +451,25 @@
                     <TextBox x:Name="EditTaskEventId" Header="Event ID" PlaceholderText="e.g., 1000 (Optional)" InputScope="Number"/>
                 </StackPanel>
 
+                <!-- Idle Trigger -->
+                <StackPanel x:Name="PanelIdle" Visibility="Collapsed" Spacing="8" Margin="0,4,0,0">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="Wait for the computer to be idle for:" VerticalAlignment="Center"/>
+                        <TextBox x:Name="EditTaskIdleDuration" PlaceholderText="e.g., 10m" Width="100" Text="PT10M"/>
+                        <TextBlock Text="(e.g. 5m, 10m, 30m)" VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.7"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Session State Change Trigger -->
+                <StackPanel x:Name="PanelSessionState" Visibility="Collapsed" Spacing="8" Margin="0,4,0,0">
+                    <ComboBox x:Name="EditTaskSessionStateType" Header="Trigger on" SelectedIndex="0">
+                        <ComboBoxItem Content="Workstation Lock" Tag="Lock"/>
+                        <ComboBoxItem Content="Workstation Unlock" Tag="Unlock"/>
+                        <ComboBoxItem Content="Remote Desktop Connect" Tag="RemoteConnect"/>
+                        <ComboBoxItem Content="Remote Desktop Disconnect" Tag="RemoteDisconnect"/>
+                    </ComboBox>
+                </StackPanel>
+
                 <StackPanel Spacing="8" Margin="0,12,0,0">
                      <CheckBox x:Name="EditTaskExpires" Content="Expire task on:" Click="EditTaskExpires_Click"/>
                      <StackPanel Spacing="8" Margin="28,0,0,0">
@@ -537,11 +556,28 @@
                 <TextBlock x:Uid="ConditionsTitle" Text="Conditions" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,4"/>
                 <StackPanel Spacing="8">
                     <TextBlock Text="Start the task only if:" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.7"/>
+                    
                     <CheckBox x:Name="EditTaskOnlyIfIdle" x:Uid="ConditionIdle" Content="Computer is idle"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="24,0,0,0">
+                        <TextBlock Text="Idle for:" VerticalAlignment="Center"/>
+                        <TextBox x:Name="EditTaskIdleDurationSetting" PlaceholderText="e.g., 10m" Width="100" Text="PT10M"/>
+                        <CheckBox x:Name="EditTaskStopOnIdleEnd" Content="Stop when idle ends" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    
                     <CheckBox x:Name="EditTaskOnlyIfAC" x:Uid="ConditionAC" Content="Computer is on AC power"/>
+                    <CheckBox x:Name="EditTaskStopBatterySwitch" Content="Stop if switching to battery power" Margin="24,0,0,0"/>
+                    
+                    <CheckBox x:Name="EditTaskOnBattery" Content="Computer is on battery power"/>
+                    
                     <CheckBox x:Name="EditTaskOnlyIfNetwork" x:Uid="ConditionNetwork" Content="Network is available"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="24,0,0,0">
+                        <TextBlock Text="Specific network:" VerticalAlignment="Center"/>
+                        <ComboBox x:Name="EditTaskNetworkSelection" Width="250" MaxDropDownHeight="280">
+                            <ComboBoxItem Content="Any network" Tag="" IsSelected="True"/>
+                        </ComboBox>
+                    </StackPanel>
+                    
                     <CheckBox x:Name="EditTaskWakeToRun" x:Uid="ConditionWake" Content="Wake the computer to run this task"/>
-                    <CheckBox x:Name="EditTaskStopOnBattery" x:Uid="ConditionBattery" Content="Stop if switching to battery power"/>
                 </StackPanel>
                 
                 <!-- Settings Section -->
@@ -550,13 +586,51 @@
                 <StackPanel Spacing="12">
                     <CheckBox x:Name="EditTaskRunWithHighestPrivileges" Content="Run with highest privileges"/>
                     <CheckBox x:Name="EditTaskRunIfMissed" x:Uid="RunIfMissed" Content="Run task as soon as possible after a scheduled start is missed"/>
+                    
+                    <ComboBox x:Name="EditTaskMultipleInstances" Header="If the task is already running:">
+                        <ComboBoxItem Content="Do not start a new instance" Tag="IgnoreNew" IsSelected="True"/>
+                        <ComboBoxItem Content="Run a new instance in parallel" Tag="Parallel"/>
+                        <ComboBoxItem Content="Queue a new instance" Tag="Queue"/>
+                        <ComboBoxItem Content="Stop the existing instance" Tag="StopExisting"/>
+                    </ComboBox>
+                    
+                    <ComboBox x:Name="EditTaskPriority" Header="Task Priority:" SelectedIndex="4">
+                        <ComboBoxItem Content="Realtime (0)" Tag="0"/>
+                        <ComboBoxItem Content="High (1)" Tag="1"/>
+                        <ComboBoxItem Content="Above Normal (3)" Tag="3"/>
+                        <ComboBoxItem Content="Normal (7)" Tag="7"/>
+                        <ComboBoxItem Content="Below Normal (9)" Tag="9"/>
+                        <ComboBoxItem Content="Idle (10)" Tag="10"/>
+                    </ComboBox>
+                    
+                    <CheckBox x:Name="EditTaskDeleteExpired" Content="Delete the task if it is not scheduled to run again"/>
+                    <CheckBox x:Name="EditTaskAllowHardTerminate" Content="Allow task to be forcefully terminated" IsChecked="True"/>
+                    
                     <CheckBox x:Name="EditTaskRestartOnFailure" x:Uid="RestartOnFailure" Content="If the task fails, restart every:"/>
                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="24,0,0,0">
                         <TextBox x:Name="EditTaskRestartInterval" PlaceholderText="e.g. 1 minute" Width="120"/>
                         <TextBlock Text="(e.g. 30s, 1m, 5m)" VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.7"/>
                         <TextBlock Text="Attempt to restart up to:" VerticalAlignment="Center"/>
                         <NumberBox x:Name="EditTaskRestartCount" Width="80" Value="3" Minimum="0" Maximum="999"/>
+                        <TextBlock Text="times" VerticalAlignment="Center"/>
                     </StackPanel>
+                </StackPanel>
+                
+                <!-- User Context Section -->
+                <Rectangle Height="2" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,12,0,4"/>
+                <TextBlock Text="User Context" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,4"/>
+                <StackPanel Spacing="8">
+                    <RadioButton x:Name="RunAsCurrentUser" Content="Run as current user" GroupName="UserContext" IsChecked="True" Checked="UserContextRadio_Checked"/>
+                    <RadioButton x:Name="RunAsSpecificUser" Content="Run as specific user" GroupName="UserContext" Checked="UserContextRadio_Checked"/>
+                    <TextBox x:Name="EditTaskRunAsUser" Header="Username" PlaceholderText="DOMAIN\Username or username@domain.com" Margin="24,0,0,0" IsEnabled="False"/>
+                    <RadioButton x:Name="RunAsSystem" Content="Run as SYSTEM (requires admin)" GroupName="UserContext" Click="RunAsSystem_Click" Checked="UserContextRadio_Checked"/>
+                    
+                    <InfoBar x:Name="SystemUserWarning" Severity="Warning" IsOpen="False" IsClosable="False" Margin="0,4,0,0">
+                        <InfoBar.Title>Administrator Privileges Required</InfoBar.Title>
+                        <InfoBar.Message>
+                            To create tasks that run as SYSTEM, this application must be running with administrator privileges. Right-click the app and select "Run as administrator".
+                        </InfoBar.Message>
+                    </InfoBar>
                 </StackPanel>
             </StackPanel>
             </ScrollViewer>

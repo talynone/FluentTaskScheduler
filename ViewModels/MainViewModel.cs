@@ -1,0 +1,186 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
+using System.Windows.Input;
+using FluentTaskScheduler.Models;
+using Microsoft.UI.Dispatching;
+
+namespace FluentTaskScheduler.ViewModels
+{
+    public class MainViewModel : INotifyPropertyChanged
+    {
+        private readonly Services.TaskServiceWrapper _taskService = new();
+        private List<ScheduledTaskModel> _allTasks = new();
+        private bool _isLoading;
+        private string _searchText = "";
+        private string _currentFolderPath = "\\";
+        private string _filterTag = "all";
+        private ScheduledTaskModel? _selectedTask;
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public ObservableCollection<ScheduledTaskModel> FilteredTasks { get; } = new();
+        
+        // Expose service for direct calls from UI where Command isn't appropriate yet
+        public Services.TaskServiceWrapper TaskService => _taskService;
+
+        public bool IsLoading
+        {
+            get => _isLoading;
+            set { _isLoading = value; OnPropertyChanged(); }
+        }
+
+        public string SearchText
+        {
+            get => _searchText;
+            set
+            {
+                if (_searchText != value)
+                {
+                    _searchText = value;
+                    OnPropertyChanged();
+                    ApplyFilters();
+                }
+            }
+        }
+
+        public ScheduledTaskModel? SelectedTask
+        {
+            get => _selectedTask;
+            set { _selectedTask = value; OnPropertyChanged(); }
+        }
+
+        public MainViewModel()
+        {
+        }
+
+        public async Task LoadTasksAsync()
+        {
+            if (IsLoading) return;
+            IsLoading = true;
+
+            try
+            {
+                var tasks = await Task.Run(() => _taskService.GetAllTasks());
+                _allTasks = tasks ?? new List<ScheduledTaskModel>();
+                ApplyFilters();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error loading tasks: {ex.Message}");
+                _allTasks = new List<ScheduledTaskModel>();
+            }
+            finally
+            {
+                IsLoading = false;
+            }
+        }
+
+        public void SetFilter(string filterTag)
+        {
+            _filterTag = filterTag;
+            // If it's a global filter (footer items), reset folder path
+            if (IsGlobalFilter(filterTag))
+            {
+                _currentFolderPath = "\\";
+            }
+            else if (!string.IsNullOrEmpty(filterTag) && filterTag != "Add")
+            {
+                _currentFolderPath = filterTag;
+            }
+            ApplyFilters();
+        }
+
+        private bool IsGlobalFilter(string tag)
+        {
+            return tag == "all" || tag == "running" || tag == "enabled" || tag == "disabled";
+        }
+
+        private void ApplyFilters()
+        {
+            if (_allTasks == null) return;
+
+            var query = _allTasks.AsEnumerable();
+
+            // Search Filter
+            if (!string.IsNullOrWhiteSpace(SearchText))
+            {
+                query = query.Where(t => t.Name != null && t.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
+            }
+
+            // Tag/Folder Filter
+            if (!IsGlobalFilter(_filterTag))
+            {
+                // Folder logic
+                query = query.Where(t =>
+                {
+                    var taskDir = System.IO.Path.GetDirectoryName(t.Path);
+                    if (string.IsNullOrEmpty(taskDir)) taskDir = "\\";
+                    return taskDir.Equals(_currentFolderPath, StringComparison.OrdinalIgnoreCase);
+                });
+            }
+            else
+            {
+                // Status Logic
+                if (_filterTag == "running") query = query.Where(t => t.State == "Running");
+                else if (_filterTag == "enabled") query = query.Where(t => t.IsEnabled);
+                else if (_filterTag == "disabled") query = query.Where(t => !t.IsEnabled);
+            }
+
+            var results = query.ToList();
+            UpdateFilteredTasksCollection(results);
+        }
+
+        private void UpdateFilteredTasksCollection(List<ScheduledTaskModel> results)
+        {
+            // Optimization: Handle initial load or empty state efficiently (O(N))
+            if (FilteredTasks.Count == 0)
+            {
+                foreach (var taskModel in results) FilteredTasks.Add(taskModel);
+                return;
+            }
+
+            var resultsSet = new HashSet<ScheduledTaskModel>(results);
+            var currentSet = new HashSet<ScheduledTaskModel>(FilteredTasks);
+
+            // Synchronize FilteredTasks with results to preserve scroll position
+            // Removing items that are no longer in the filtered results
+            for (int i = FilteredTasks.Count - 1; i >= 0; i--)
+            {
+                if (!resultsSet.Contains(FilteredTasks[i]))
+                {
+                    currentSet.Remove(FilteredTasks[i]);
+                    FilteredTasks.RemoveAt(i);
+                }
+            }
+
+            // Inserting or moving items to match the results list
+            for (int i = 0; i < results.Count; i++)
+            {
+                var taskModel = results[i];
+                if (!currentSet.Contains(taskModel))
+                {
+                    FilteredTasks.Insert(i, taskModel);
+                    currentSet.Add(taskModel);
+                }
+                else
+                {
+                    int oldIndex = FilteredTasks.IndexOf(taskModel);
+                    if (oldIndex != i)
+                    {
+                        FilteredTasks.Move(oldIndex, i);
+                    }
+                }
+            }
+        }
+
+        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+    }
+}

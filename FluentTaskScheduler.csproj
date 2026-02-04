@@ -7,7 +7,6 @@
         <UseWinUI>true</UseWinUI>
         <EnableMsixTooling>true</EnableMsixTooling>
         <WindowsPackageType>None</WindowsPackageType>
-        <WindowsPackageType>None</WindowsPackageType>
         <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
         <RuntimeIdentifier>win-x64</RuntimeIdentifier>
         <Platform>x64</Platform>

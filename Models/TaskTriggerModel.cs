@@ -59,6 +59,10 @@ namespace FluentTaskScheduler.Models
         {
             get
             {
+                if (TriggerType == "SessionStateChange") return $"At {SessionStateChangeType}";
+                if (TriggerType == "OnIdle") return "On Idle";
+                if (TriggerType == "AtLogon") return "At Logon";
+                if (TriggerType == "AtStartup") return "At Startup";
                 if (string.IsNullOrEmpty(ScheduleInfo)) return TriggerType;
                 return $"{TriggerType} at {ScheduleInfo}";
             }

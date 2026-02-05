@@ -62,7 +62,6 @@ FluentTaskScheduler is a professional-grade wrapper for the Windows Task Schedul
 
 - **Task History**: View recent task execution history within the app (Today, Yesterday, This Week, All Time).
 - **Search & Filter**: Instantly find tasks by name, status, or path.
-- **XML Editing**: Direct access to the underlying Task XML for advanced configuration.
 - **Import/Export**: Easily backup or migrate task definitions, including CSV export for history.
 - **Batch Operations**: Select and manage multiple tasks simultaneously.
 - **CLI Support**: Full command-line interface for automation and headless management.

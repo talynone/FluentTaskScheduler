@@ -816,22 +816,6 @@ namespace FluentTaskScheduler.Services
                     ex.Message.Contains("Zugriff verweigert", StringComparison.OrdinalIgnoreCase);
         }
 
-        public string GetTaskXml(string path)
-        {
-            using (var ts = new TaskService())
-            {
-                return ts.GetTask(path)?.Xml ?? "";
-            }
-        }
-        
-        public void UpdateTaskXml(string path, string xml)
-        {
-             using (var ts = new TaskService())
-             {
-                 ts.RootFolder.RegisterTask(path, xml, TaskCreation.CreateOrUpdate, null, null, TaskLogonType.InteractiveToken);
-             }
-        }
-
         public TaskFolderModel GetFolderStructure()
         {
             using (var ts = new TaskService())

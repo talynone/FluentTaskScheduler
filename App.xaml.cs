@@ -249,25 +249,40 @@ namespace FluentTaskScheduler
             m_window.Activate();
         }
 
+        Microsoft.UI.Xaml.Media.SystemBackdrop? _backdrop;
+
         public void ApplyTheme(ElementTheme theme)
         {
             if (m_window?.Content is Control root)
             {
-                root.RequestedTheme = theme;
+                // Force Dark Theme
+                root.RequestedTheme = ElementTheme.Dark;
                 
-                // Handle OLED Mode (Pure Black Background)
-                // We access the frame's background if possible, or just the window content
-                if (theme == ElementTheme.Dark && SS.IsOledMode)
+                // Reset backdrop first
+                m_window.SystemBackdrop = null;
+
+                if (SS.IsOledMode)
                 {
-                   root.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black);
+                     // OLED: Pure Black, No Mica
+                     root.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black);
+                }
+                else if (SS.IsMicaEnabled && Microsoft.UI.Composition.SystemBackdrops.MicaController.IsSupported())
+                {
+                    // Mica Enabled
+                    root.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(40, 32, 32, 32));
+                    
+                    if (_backdrop == null) _backdrop = new Microsoft.UI.Xaml.Media.MicaBackdrop();
+                    m_window.SystemBackdrop = _backdrop;
                 }
                 else
                 {
-                    // Reset to default (null or system brush)
-                    if (App.Current.Resources.ContainsKey("ApplicationPageBackgroundThemeBrush"))
-                    {
-                        root.Background = (Microsoft.UI.Xaml.Media.Brush)App.Current.Resources["ApplicationPageBackgroundThemeBrush"];
-                    }
+                    // Mica Disabled (Standard Dark)
+                    // Ensure backdrop is cleared (already done at start of method, but strictly enforcing logic flow)
+                    m_window.SystemBackdrop = null; 
+                    _backdrop = null; // Dispose reference
+
+                    // Opaque Dark Grey Background
+                    root.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 32, 32, 32));
                 }
             }
         }

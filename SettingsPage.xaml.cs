@@ -25,6 +25,11 @@ namespace FluentTaskScheduler
             // OLED Mode - always enabled in dark mode
             OledModeToggle.IsOn = SettingsService.IsOledMode;
 
+            // Mica Mode
+            MicaModeToggle.IsOn = SettingsService.IsMicaEnabled;
+            // Only enable Mica toggle if not in OLED mode (conceptually)
+            MicaModeToggle.IsEnabled = !SettingsService.IsOledMode;
+
             // Confirm Delete
             ConfirmDeleteToggle.IsOn = SettingsService.ConfirmDelete;
 
@@ -46,7 +51,18 @@ namespace FluentTaskScheduler
             if (!_isLoaded) return;
 
             SettingsService.IsOledMode = OledModeToggle.IsOn;
-            // Re-apply dark theme with OLED setting
+            
+            // Disable Mica toggle if OLED is on (mutually exclusive)
+            MicaModeToggle.IsEnabled = !OledModeToggle.IsOn;
+            
+            // Re-apply dark theme
+            (Application.Current as App)?.ApplyTheme(ElementTheme.Dark);
+        }
+
+        private void MicaModeToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (!_isLoaded) return;
+            SettingsService.IsMicaEnabled = MicaModeToggle.IsOn;
             (Application.Current as App)?.ApplyTheme(ElementTheme.Dark);
         }
 

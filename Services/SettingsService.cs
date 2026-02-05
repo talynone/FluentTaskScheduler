@@ -9,6 +9,7 @@ namespace FluentTaskScheduler.Services
     {
         public string Theme { get; set; } = "Default";
         public bool IsOledMode { get; set; } = false;
+        public bool IsMicaEnabled { get; set; } = true;
         public string Language { get; set; } = "en-US";
         public bool ConfirmDelete { get; set; } = true;
     }
@@ -71,6 +72,16 @@ namespace FluentTaskScheduler.Services
             set
             {
                 _settings.IsOledMode = value;
+                Save();
+            }
+        }
+
+        public static bool IsMicaEnabled
+        {
+            get => _settings.IsMicaEnabled;
+            set
+            {
+                _settings.IsMicaEnabled = value;
                 Save();
             }
         }

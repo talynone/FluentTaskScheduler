@@ -5,7 +5,9 @@
     xmlns:local="using:FluentTaskScheduler"
     xmlns:models="using:FluentTaskScheduler.Models"
     xmlns:converters="using:FluentTaskScheduler.Converters"
-    Loaded="MainPage_Loaded">
+    Loaded="MainPage_Loaded"
+    SizeChanged="Page_SizeChanged"
+    Background="Transparent">
 
     <Page.KeyboardAccelerators>
         <KeyboardAccelerator Key="F5" Invoked="RefreshAccelerator_Invoked"/>
@@ -28,7 +30,8 @@
                         IsBackButtonVisible="Collapsed"
                         IsSettingsVisible="True"
                         SelectionChanged="NavView_SelectionChanged"
-                        ItemInvoked="NavView_ItemInvoked">
+                        ItemInvoked="NavView_ItemInvoked"
+                        Background="Transparent">
             
             <NavigationView.PaneCustomContent>
                 <StackPanel>
@@ -311,7 +314,6 @@
                         <Button x:Name="StopTaskButton" Content="Stop" Click="StopTask_Click"/>
                         <Button x:Name="EditTaskButton" Content="Edit" Click="EditTask_Click"/>
                         <Button x:Name="ExportTaskButton" Content="Export" Click="ExportTask_Click"/>
-                        <Button x:Name="EditXmlButton" Content="Edit XML" Click="EditXml_Click"/>
                         <Button x:Name="DeleteTaskButton" Content="Delete" Click="DeleteTask_Click" />
                     </StackPanel>
                 </StackPanel>

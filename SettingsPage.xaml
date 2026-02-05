@@ -5,7 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
-    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    Background="Transparent">
 
     <Grid>
         <Grid.RowDefinitions>
@@ -16,7 +16,9 @@
         <!-- Header -->
         <StackPanel Grid.Row="0" Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}" Padding="24,12,24,12">
             <StackPanel Orientation="Horizontal" Spacing="16">
-                <Button x:Name="BackButton" Click="BackButton_Click" Style="{StaticResource NavigationBackButtonNormalStyle}"/>
+                <Button x:Name="BackButton" Click="BackButton_Click" Background="Transparent" BorderThickness="0" Width="40" Height="40" CornerRadius="20" ToolTipService.ToolTip="Go Back">
+                    <FontIcon Glyph="&#xE72B;"/>
+                </Button>
                 <TextBlock x:Uid="SettingsHeader" Text="Settings" Style="{StaticResource TitleTextBlockStyle}" VerticalAlignment="Center"/>
             </StackPanel>
         </StackPanel>
@@ -30,6 +32,8 @@
                     <TextBlock x:Uid="AppearanceHeader" Text="Appearance" Style="{StaticResource SubtitleTextBlockStyle}"/>
                     
                     <TextBlock Text="App Theme: Dark (Fixed)" Style="{StaticResource BodyTextBlockStyle}" Margin="0,8,0,0"/>
+
+                    <ToggleSwitch x:Name="MicaModeToggle" Header="Mica Effect" OffContent="Off" OnContent="On" Toggled="MicaModeToggle_Toggled" IsOn="True" Margin="0,8,0,0"/>
 
                     <ToggleSwitch x:Name="OledModeToggle" x:Uid="OledToggle" Header="OLED Mode" OffContent="Standard Dark" OnContent="Pure Black (Power Saving)" Toggled="OledModeToggle_Toggled" IsOn="True" Margin="0,8,0,0"/>
                     <TextBlock x:Uid="OledHint" Text="OLED mode uses pure black backgrounds for power saving." Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6" Margin="0,-4,0,0"/>

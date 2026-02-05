@@ -56,6 +56,19 @@ namespace FluentTaskScheduler
             LoadFolderStructure();
             _ = ViewModel.LoadTasksAsync();
             TaskListView.Focus(FocusState.Programmatic);
+            UpdateFolderTreeMaxHeight();
+        }
+
+        private void Page_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateFolderTreeMaxHeight();
+
+        private void UpdateFolderTreeMaxHeight()
+        {
+            if (NavView == null || FolderTreeView == null) return;
+            // Estimated height of Footer Items (4 items + Settings) + Header ("New Task") + Margins
+            // Footer: ~200px, Header: ~60px, "Folders" Label: ~30px, Buffer: ~50px => ~340px
+            double availableHeight = NavView.ActualHeight - 380; 
+            if (availableHeight < 100) availableHeight = 100;
+            FolderTreeView.MaxHeight = availableHeight;
         }
 
         // ========================================================================================================
@@ -362,27 +375,6 @@ namespace FluentTaskScheduler
             }
         }
         
-        private async void EditXml_Click(object sender, RoutedEventArgs e)
-        {
-             // XML Editing logic - simplified for refactor
-             if (ViewModel.SelectedTask == null) return;
-             string xml = ViewModel.TaskService.GetTaskXml(ViewModel.SelectedTask.Path);
-             
-             var dialog = new ContentDialog { Title = "Edit XML", PrimaryButtonText = "Save", CloseButtonText = "Cancel", XamlRoot = this.XamlRoot };
-             var tb = new TextBox { Text = xml, AcceptsReturn = true, Height = 400, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas") };
-             dialog.Content = tb;
-             
-             if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-             {
-                 try 
-                 { 
-                     ViewModel.TaskService.UpdateTaskXml(ViewModel.SelectedTask.Path, tb.Text); 
-                     _ = ViewModel.LoadTasksAsync();
-                 } 
-                 catch (Exception ex) { await ShowErrorDialog(ex.Message); }
-             }
-        }
-
         private async void ImportTask()
         {
             var picker = new Windows.Storage.Pickers.FileOpenPicker();

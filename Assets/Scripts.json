@@ -1,9 +1,23 @@
 [
   {
-    "Name": "Flush DNS Cache",
-    "Description": "Clears the DNS client resolver cache. Useful for fixing connection issues.",
-    "Command": "ipconfig",
-    "Arguments": "/flushdns",
+    "Name": "System File Checker",
+    "Description": "Scans for and restores corrupted system files.",
+    "Command": "sfc",
+    "Arguments": "/scannow",
+    "RunAsAdmin": true
+  },
+  {
+    "Name": "Disk Cleanup (System)",
+    "Description": "Runs Disk Cleanup on the system drive.",
+    "Command": "cleanmgr.exe",
+    "Arguments": "/d c: /sageset:1",
+    "RunAsAdmin": true
+  },
+  {
+    "Name": "Check Disk (Scan Only)",
+    "Description": "Scans the C: drive for errors without fixing them (safe to run while in use).",
+    "Command": "chkdsk",
+    "Arguments": "c: /scan",
     "RunAsAdmin": true
   },
   {
@@ -14,6 +28,41 @@
     "RunAsAdmin": false
   },
   {
+    "Name": "System Info Report",
+    "Description": "Generates a detailed system report and saves it to a file.",
+    "Command": "cmd.exe",
+    "Arguments": "/c systeminfo > C:\\Temp\\SystemInfo.txt",
+    "RunAsAdmin": false
+  },
+  {
+    "Name": "Network Connectivity Check",
+    "Description": "Pings Google DNS to check internet connectivity.",
+    "Command": "ping.exe",
+    "Arguments": "8.8.8.8 -n 4",
+    "RunAsAdmin": false
+  },
+  {
+    "Name": "Flush DNS Cache",
+    "Description": "Clears the DNS resolver cache.",
+    "Command": "ipconfig.exe",
+    "Arguments": "/flushdns",
+    "RunAsAdmin": true
+  },
+  {
+    "Name": "Shutdown Computer",
+    "Description": "Shuts down the computer after one hour.",
+    "Command": "shutdown.exe",
+    "Arguments": "/s /t 3600",
+    "RunAsAdmin": true
+  },
+  {
+    "Name": "Reboot Computer",
+    "Description": "Restarts the computer after one hour.",
+    "Command": "shutdown.exe",
+    "Arguments": "/r /t 3600",
+    "RunAsAdmin": true
+  },
+  {
     "Name": "Restart Print Spooler",
     "Description": "Restarts the Print Spooler service to fix stuck print jobs.",
     "Command": "powershell.exe",
@@ -21,31 +70,24 @@
     "RunAsAdmin": true
   },
   {
-    "Name": "Backup Drivers",
-    "Description": "Exports all third-party drivers to C:\\DriversBackup.",
-    "Command": "dism",
-    "Arguments": "/online /export-driver /destination:C:\\DriversBackup",
+    "Name": "Battery Report",
+    "Description": "Generates a battery health report in your user folder.",
+    "Command": "powercfg",
+    "Arguments": "/batteryreport /output \"C:\\Users\\%USERNAME%\\battery-report.html\"",
     "RunAsAdmin": true
   },
   {
-    "Name": "System File Checker",
-    "Description": "Scans for and restores corrupted system files.",
-    "Command": "sfc",
-    "Arguments": "/scannow",
-    "RunAsAdmin": true
-  },
-  {
-    "Name": "Shutdown in 1 Hour",
-    "Description": "Schedules a system shutdown in 60 minutes.",
-    "Command": "shutdown",
-    "Arguments": "/s /t 3600",
+    "Name": "Empty Recycle Bin",
+    "Description": "Permanently deletes all items in the Recycle Bin.",
+    "Command": "powershell.exe",
+    "Arguments": "-ExecutionPolicy Bypass -Command \"Clear-RecycleBin -Force -ErrorAction SilentlyContinue\"",
     "RunAsAdmin": false
   },
   {
-    "Name": "Abort Shutdown",
-    "Description": "Aborts a pending system shutdown.",
-    "Command": "shutdown",
-    "Arguments": "/a",
+    "Name": "Export IP Configuration",
+    "Description": "Saves full IP configuration details to C:\\Temp\\ipconfig.txt.",
+    "Command": "cmd.exe",
+    "Arguments": "/c ipconfig /all > C:\\Temp\\ipconfig.txt",
     "RunAsAdmin": false
   }
 ]

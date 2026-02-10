@@ -646,7 +646,9 @@ namespace FluentTaskScheduler.Services
                             Message = record.FormatDescription() ?? record.LevelDisplayName ?? "",
                             EventId = record.Id,
                             ActivityId = record.ActivityId,
-                            User = GetUserFromRecord(record)
+                            User = GetUserFromRecord(record),
+                            TaskPath = taskPath,
+                            TaskName = System.IO.Path.GetFileName(taskPath)
                         });
                     }
                 }

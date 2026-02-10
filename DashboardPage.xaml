@@ -120,7 +120,7 @@
                     <!-- Recent Activity Stream -->
                     <StackPanel Grid.Column="1" Spacing="6">
                         <TextBlock Text="Activity Stream" Style="{StaticResource SubtitleTextBlockStyle}"/>
-                        <ListView ItemsSource="{x:Bind ViewModel.RecentHistory, Mode=OneWay}" SelectionMode="None" Padding="0">
+                        <ListView ItemsSource="{x:Bind ViewModel.RecentHistory, Mode=OneWay}" SelectionMode="None" Padding="0" IsItemClickEnabled="True" ItemClick="ActivityList_ItemClick">
                             <ListView.ItemContainerStyle>
                                 <Style TargetType="ListViewItem">
                                     <Setter Property="Padding" Value="0"/>

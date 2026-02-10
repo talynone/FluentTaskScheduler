@@ -9,5 +9,7 @@ namespace FluentTaskScheduler.Models
         public int EventId { get; set; }
         public string User { get; set; } = "";
         public Guid? ActivityId { get; set; }
+        public string TaskPath { get; set; } = "";
+        public string TaskName { get; set; } = "";
     }
 }

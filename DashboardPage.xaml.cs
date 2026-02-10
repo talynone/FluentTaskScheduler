@@ -21,5 +21,12 @@ namespace FluentTaskScheduler
                 await ViewModel.LoadDashboardData();
             }
         }
+        private void ActivityList_ItemClick(object sender, ItemClickEventArgs e)
+        {
+            if (e.ClickedItem is FluentTaskScheduler.Models.TaskHistoryEntry entry && !string.IsNullOrEmpty(entry.TaskPath))
+            {
+                ViewModel.NavigateToTask(entry.TaskPath);
+            }
+        }
     }
 }

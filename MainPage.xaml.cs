@@ -30,6 +30,7 @@ namespace FluentTaskScheduler
         private ObservableCollection<TaskTriggerModel> _tempTriggers = new();
         private bool _isEditMode = false;
         private bool _isPopulatingDetails = false;
+        private bool _isFromTemplate = false;
         
         // Current folder path for new task creation
         private string _currentFolderPath = "\\";
@@ -61,6 +62,7 @@ namespace FluentTaskScheduler
         {
             if (this.Content?.XamlRoot == null) return;
             _isEditMode = false;
+            _isFromTemplate = template != null;
             
             EditTaskName.Text = template?.Name ?? "";
             EditTaskDescription.Text = template?.Description ?? "";
@@ -241,6 +243,47 @@ namespace FluentTaskScheduler
         
         private void RefreshButton_Click(object sender, RoutedEventArgs e) => _ = ViewModel.LoadTasksAsync();
         private void ImportTask_Click(object sender, RoutedEventArgs e) => ImportTask(); // Implement if needed, kept generic
+
+        public async void NavigateToTask(string taskPath)
+        {
+            // Switch to Tasks View
+            NavView.SelectedItem = null; // Clear selection to indicate custom state or select "All Tasks"
+            NavView.Header = "Scheduled Tasks";
+            TasksViewGrid.Visibility = Visibility.Visible;
+            ContentFrame.Visibility = Visibility.Collapsed;
+            FolderTreeView.SelectedItem = null;
+
+            // Set filter to show this task (or all tasks)
+            _currentFolderPath = System.IO.Path.GetDirectoryName(taskPath) ?? "\\";
+            ViewModel.SetFilter("all"); // Reset filter to show everything in the folder, or just "all" global
+            
+            // Wait for load if needed
+            if (ViewModel.FilteredTasks.Count == 0 && !ViewModel.IsLoading)
+            {
+                await ViewModel.LoadTasksAsync();
+            }
+
+            // Find the task
+            var task = ViewModel.FilteredTasks.FirstOrDefault(t => t.Path.Equals(taskPath, StringComparison.OrdinalIgnoreCase));
+            
+            // If not found in current view, try to load specific folder? 
+            // For now, let's assume it's in the list if we load all. 
+            // Actually SetFilter("all") loads everything? No, SetFilter("all") is global filter.
+            
+            if (task == null)
+            {
+                // Try reloading
+                await ViewModel.LoadTasksAsync();
+                task = ViewModel.FilteredTasks.FirstOrDefault(t => t.Path.Equals(taskPath, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (task != null)
+            {
+                ViewModel.SelectedTask = task;
+                TaskListView.ScrollIntoView(task);
+                await ShowTaskDetails();
+            }
+        }
 
         // ========================================================================================================
         // Task List & Selection
@@ -485,6 +528,7 @@ namespace FluentTaskScheduler
 
             _isEditMode = true;
             _isPopulatingDetails = true;
+            _isFromTemplate = false;
             
             // Populate Dialog
             EditTaskName.Text = ViewModel.SelectedTask.Name;
@@ -539,7 +583,11 @@ namespace FluentTaskScheduler
             
             // Handle folder
             string folder = "\\";
-            if (!_isEditMode) // New Task
+            if (_isFromTemplate)
+            {
+                folder = "\\";
+            }
+            else if (!_isEditMode) // New Task
             {
                 folder = _currentFolderPath;  // Use tracked folder path
             }

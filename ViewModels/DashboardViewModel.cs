@@ -156,6 +156,14 @@ namespace FluentTaskScheduler.ViewModels
             }
         }
 
+        public void NavigateToTask(string taskPath)
+        {
+            if (MainPage.Current != null)
+            {
+                MainPage.Current.NavigateToTask(taskPath);
+            }
+        }
+
         protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

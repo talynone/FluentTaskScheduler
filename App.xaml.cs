@@ -289,14 +289,21 @@ namespace FluentTaskScheduler
                 {
                      // OLED: Pure Black, No Mica
                      root.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black);
+                     // Opaque cards for OLED
+                     Application.Current.Resources["TaskCardBackground"] = Application.Current.Resources["CardBackgroundFillColorDefaultBrush"];
+                     Application.Current.Resources["TaskCardBorder"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
                 }
                 else if (SS.IsMicaEnabled && Microsoft.UI.Composition.SystemBackdrops.MicaController.IsSupported())
                 {
-                    // Mica Enabled
-                    root.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(40, 32, 32, 32));
+                    // Mica Enabled: Very transparent to let backdrop show
+                    root.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(2, 32, 32, 32));
                     
                     if (_backdrop == null) _backdrop = new Microsoft.UI.Xaml.Media.MicaBackdrop();
                     m_window.SystemBackdrop = _backdrop;
+                    
+                    // Very transparent cards to show Mica effect
+                    Application.Current.Resources["TaskCardBackground"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(25, 16, 16, 16));
+                    Application.Current.Resources["TaskCardBorder"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(48, 255, 255, 255));
                 }
                 else
                 {
@@ -307,6 +314,10 @@ namespace FluentTaskScheduler
 
                     // Opaque Dark Grey Background
                     root.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 32, 32, 32));
+                    
+                    // Opaque cards for standard dark mode
+                    Application.Current.Resources["TaskCardBackground"] = Application.Current.Resources["CardBackgroundFillColorDefaultBrush"];
+                    Application.Current.Resources["TaskCardBorder"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
                 }
             }
         }

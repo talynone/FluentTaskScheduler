@@ -182,7 +182,7 @@
                     </ListView.ItemContainerTransitions>
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="models:ScheduledTaskModel">
-                            <Grid Padding="12" Margin="0,4" CornerRadius="8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                            <Grid Padding="12" Margin="0,4" CornerRadius="8" Background="{ThemeResource TaskCardBackground}" BorderThickness="1" BorderBrush="{ThemeResource TaskCardBorder}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>

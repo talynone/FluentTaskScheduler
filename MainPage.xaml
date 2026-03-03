@@ -37,13 +37,29 @@
             <NavigationView.PaneCustomContent>
                 <StackPanel>
                     <StackPanel x:Name="FolderSection" Visibility="{x:Bind NavView.IsPaneOpen, Mode=OneWay}">
-                        <TextBlock Text="Folders" 
-                                  FontWeight="SemiBold" 
-                                  Margin="10,5,0,4"
-                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        <StackPanel Orientation="Horizontal" Margin="10,5,6,4">
+                            <TextBlock Text="Folders"
+                                      FontWeight="SemiBold"
+                                      VerticalAlignment="Center"
+                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                      HorizontalAlignment="Left"
+                                      Margin="0"/>
+                            <Button x:Name="AddFolderBtn"
+                                    Content="+"
+                                    Width="24" Height="24"
+                                    Padding="0"
+                                    Margin="auto,0,0,0"
+                                    HorizontalAlignment="Right"
+                                    FontSize="14"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    ToolTipService.ToolTip="New subfolder under selected folder"
+                                    Click="AddFolderBtn_Click"/>
+                        </StackPanel>
                         <TreeView x:Name="FolderTreeView" 
                                   SelectionMode="Single"
                                   ItemInvoked="FolderTreeView_ItemInvoked"
+                                  RightTapped="FolderTreeView_RightTapped"
                                   Margin="4,0,0,8">
                             <TreeView.ItemContainerTransitions>
                                 <TransitionCollection>

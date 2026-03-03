@@ -100,6 +100,37 @@ namespace FluentTaskScheduler
             _ = ViewModel.LoadTasksAsync();
             TaskListView.Focus(FocusState.Programmatic);
             UpdateFolderTreeMaxHeight();
+            // Defer one frame so the ListView control template is fully applied before we set its internal ScrollViewer
+            DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+            {
+                ApplySmoothScrollingSelf(Services.SettingsService.SmoothScrolling);
+            });
+        }
+
+        /// <summary>Directly applies smooth scrolling to all ScrollViewers owned by MainPage,
+        /// including hidden dialog content and the ListView's internal ScrollViewer.
+        /// Called both from Loaded and from the Settings toggle handler.</summary>
+        public void ApplySmoothScrollingSelf(bool enable)
+        {
+            DetailsScrollViewer.IsScrollInertiaEnabled = enable;
+            EditScrollViewer.IsScrollInertiaEnabled = enable;
+            HistoryScrollViewer.IsScrollInertiaEnabled = enable;
+            // TaskListView has an internal ScrollViewer in its control template
+            foreach (var sv in FindDescendants<ScrollViewer>(TaskListView))
+                sv.IsScrollInertiaEnabled = enable;
+        }
+
+        private static IEnumerable<T> FindDescendants<T>(DependencyObject parent) where T : DependencyObject
+        {
+            if (parent == null) yield break;
+            int count = VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T match) yield return match;
+                foreach (var descendant in FindDescendants<T>(child))
+                    yield return descendant;
+            }
         }
 
         private void Page_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateFolderTreeMaxHeight();

@@ -14,9 +14,10 @@ namespace FluentTaskScheduler.Services
         public bool ConfirmDelete { get; set; } = true;
         public bool ShowNotifications { get; set; } = true;
         public bool EnableTrayIcon { get; set; } = true;
-        public bool MinimizeToTray { get; set; } = true;
+        public bool MinimizeToTray { get; set; } = false;
         public bool EnableLogging { get; set; } = true;
         public bool RunOnStartup { get; set; } = false;
+        public bool SmoothScrolling { get; set; } = false;
     }
 
     public static class SettingsService
@@ -157,6 +158,16 @@ namespace FluentTaskScheduler.Services
             set
             {
                 _settings.RunOnStartup = value;
+                Save();
+            }
+        }
+
+        public static bool SmoothScrolling
+        {
+            get => _settings.SmoothScrolling;
+            set
+            {
+                _settings.SmoothScrolling = value;
                 Save();
             }
         }

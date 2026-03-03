@@ -16,6 +16,7 @@ namespace FluentTaskScheduler
 
         private async void Page_Loaded(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
         {
+            PageScrollViewer.IsScrollInertiaEnabled = FluentTaskScheduler.Services.SettingsService.SmoothScrolling;
             if (ViewModel.TotalTasks == 0 && !ViewModel.IsLoading)
             {
                 await ViewModel.LoadDashboardData();

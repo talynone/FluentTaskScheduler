@@ -221,7 +221,7 @@
             <ContentDialog.Resources>
                 <x:Double x:Key="ContentDialogMaxWidth">2000</x:Double>
             </ContentDialog.Resources>
-            <ScrollViewer MaxHeight="600" VerticalScrollBarVisibility="Visible">
+            <ScrollViewer x:Name="DetailsScrollViewer" MaxHeight="600" VerticalScrollBarVisibility="Visible" IsScrollInertiaEnabled="False">
                 <StackPanel Spacing="12" Width="960">
                     <TextBlock x:Name="DialogTaskName" Style="{StaticResource TitleTextBlockStyle}"/>
                     <TextBlock x:Name="DialogTaskDescription" TextWrapping="WrapWholeWords"/>
@@ -330,7 +330,7 @@
             <ContentDialog.Resources>
                 <x:Double x:Key="ContentDialogMaxWidth">1000</x:Double>
             </ContentDialog.Resources>
-            <ScrollViewer MaxHeight="600" VerticalScrollBarVisibility="Auto" IsTabStop="False" Background="Transparent" PointerPressed="DialogScrollViewer_PointerPressed">
+            <ScrollViewer x:Name="EditScrollViewer" MaxHeight="600" VerticalScrollBarVisibility="Auto" IsTabStop="False" Background="Transparent" PointerPressed="DialogScrollViewer_PointerPressed" IsScrollInertiaEnabled="False">
                 <StackPanel Spacing="16" Width="750" Margin="0,8,12,8">
                 <TextBlock x:Uid="DialogTitle" Text="Add or edit task" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,0"/>
                 <TextBox x:Name="EditTaskName" x:Uid="TaskNameHeader" Header="Task Name" PlaceholderText="Enter task name"/>
@@ -701,7 +701,7 @@
                        Title="Task History"
                        CloseButtonText="Close"
                        DefaultButton="Close">
-            <ScrollViewer MaxHeight="600" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer x:Name="HistoryScrollViewer" MaxHeight="600" VerticalScrollBarVisibility="Auto" IsScrollInertiaEnabled="False">
                 <StackPanel Spacing="8" MinWidth="600">
                     <TextBlock x:Name="HistoryTaskInfo" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"/>
                     <ListView x:Name="HistoryListView" MaxHeight="500">

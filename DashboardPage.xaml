@@ -10,7 +10,7 @@
     Loaded="Page_Loaded">
 
     <Grid>
-        <ScrollViewer Padding="24">
+        <ScrollViewer x:Name="PageScrollViewer" Padding="24" IsScrollInertiaEnabled="False">
             <StackPanel Spacing="24" MaxWidth="1000" HorizontalAlignment="Left">
                 
                 <!-- Top Stats Cards -->

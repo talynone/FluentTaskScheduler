@@ -10,7 +10,7 @@
     Loaded="Page_Loaded">
 
     <Grid>
-        <ScrollViewer Padding="24">
+        <ScrollViewer x:Name="PageScrollViewer" Padding="24" IsScrollInertiaEnabled="False">
             <GridView ItemsSource="{x:Bind ViewModel.Scripts}" SelectionMode="None">
                 <GridView.ItemTemplate>
                     <DataTemplate x:DataType="viewmodels:ScriptTemplateModel">

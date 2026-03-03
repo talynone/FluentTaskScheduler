@@ -1,7 +1,10 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
+using Microsoft.Toolkit.Uwp.Notifications;
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using SS = global::FluentTaskScheduler.Services.SettingsService;
@@ -44,8 +47,10 @@ namespace FluentTaskScheduler
                 Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride = "en-US";
             }
             catch { }
-            
-            
+
+            // Handle toast notification activation (e.g. clicking the "minimized to tray" notification)
+            ToastNotificationManagerCompat.OnActivated += OnToastActivated;
+
             this.InitializeComponent();
             
             // Global handlers
@@ -261,6 +266,12 @@ namespace FluentTaskScheduler
             Services.TrayIconService.UpdateVisibility();
 
             Services.LogService.Info("Application started");
+
+            // Defer smooth scrolling apply until the visual tree is fully built
+            m_window.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            {
+                ApplySmoothScrolling(SS.SmoothScrolling);
+            });
         }
 
         private void AppWindow_Closing(Microsoft.UI.Windowing.AppWindow sender, Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
@@ -270,6 +281,44 @@ namespace FluentTaskScheduler
             {
                 args.Cancel = true;
                 sender.Hide();
+                Services.NotificationService.ShowMinimizedToTray();
+            }
+        }
+
+        private void OnToastActivated(ToastNotificationActivatedEventArgsCompat e)
+        {
+            var args = ToastArguments.Parse(e.Argument);
+            if (args.TryGetValue("action", out string action) && action == "show")
+            {
+                // Must marshal back to the UI thread
+                m_window?.DispatcherQueue.TryEnqueue(() =>
+                {
+                    m_window.AppWindow.Show();
+                    m_window.Activate();
+                });
+            }
+        }
+
+        public void ApplySmoothScrolling(bool enable)
+        {
+            if (m_window?.Content == null) return;
+            foreach (var sv in FindDescendants<ScrollViewer>(m_window.Content))
+            {
+                sv.IsScrollInertiaEnabled = enable;
+            }
+        }
+
+        private static IEnumerable<T> FindDescendants<T>(DependencyObject parent) where T : DependencyObject
+        {
+            if (parent == null) yield break;
+            int count = VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T match)
+                    yield return match;
+                foreach (var descendant in FindDescendants<T>(child))
+                    yield return descendant;
             }
         }
 

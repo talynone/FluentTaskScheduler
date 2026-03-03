@@ -15,6 +15,7 @@ namespace FluentTaskScheduler
 
         private async void Page_Loaded(object sender, RoutedEventArgs e)
         {
+            PageScrollViewer.IsScrollInertiaEnabled = FluentTaskScheduler.Services.SettingsService.SmoothScrolling;
             await ViewModel.LoadScriptsAsync();
         }
 

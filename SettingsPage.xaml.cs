@@ -40,6 +40,9 @@ namespace FluentTaskScheduler
             // Run on Startup
             RunOnStartupToggle.IsOn = SettingsService.RunOnStartup;
 
+            // Smooth Scrolling
+            SmoothScrollingToggle.IsOn = SettingsService.SmoothScrolling;
+
             // Logging
             LoggingToggle.IsOn = SettingsService.EnableLogging;
 
@@ -49,8 +52,12 @@ namespace FluentTaskScheduler
             MinimizeToTrayCheck.Click += MinimizeToTrayCheck_Click;
             RunOnStartupToggle.Toggled += RunOnStartupToggle_Toggled;
             LoggingToggle.Toggled += LoggingToggle_Toggled;
+            SmoothScrollingToggle.Toggled += SmoothScrollingToggle_Toggled;
 
             _isLoaded = true;
+
+            // Apply current smooth scrolling setting to this page's ScrollViewer
+            PageScrollViewer.IsScrollInertiaEnabled = SettingsService.SmoothScrolling;
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e)
@@ -118,6 +125,19 @@ namespace FluentTaskScheduler
             SettingsService.EnableLogging = LoggingToggle.IsOn;
             if (LoggingToggle.IsOn)
                 LogService.Info("Application Logging: enabled");
+        }
+
+        private void SmoothScrollingToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (!_isLoaded) return;
+            bool enable = SmoothScrollingToggle.IsOn;
+            SettingsService.SmoothScrolling = enable;
+            LogService.Info($"Smooth Scrolling: {(enable ? "enabled" : "disabled")}");
+            // Apply to this page's own ScrollViewer immediately
+            PageScrollViewer.IsScrollInertiaEnabled = enable;
+            // Apply to the rest of the live visual tree (MainPage dialogs etc.)
+            (Application.Current as App)?.ApplySmoothScrolling(enable);
+            MainPage.Current?.ApplySmoothScrollingSelf(enable);
         }
 
         private void OpenLogButton_Click(object sender, RoutedEventArgs e)

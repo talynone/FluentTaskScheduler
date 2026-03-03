@@ -24,7 +24,7 @@
         </StackPanel>
 
         <!-- Content -->
-        <ScrollViewer Grid.Row="1" Padding="24">
+        <ScrollViewer x:Name="PageScrollViewer" Grid.Row="1" Padding="24" IsScrollInertiaEnabled="False">
             <StackPanel Spacing="24" MaxWidth="600" HorizontalAlignment="Left">
                 
                 <!-- Appearance -->
@@ -51,6 +51,9 @@
 
                     <ToggleSwitch x:Name="RunOnStartupToggle" Header="Run on Startup" OnContent="On" OffContent="Off" IsOn="False" Margin="0,8,0,0"/>
                     <TextBlock Text="Automatically start the app when you log in to Windows." Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6" Margin="0,-4,0,0"/>
+
+                    <ToggleSwitch x:Name="SmoothScrollingToggle" Header="Smooth Scrolling" OnContent="On" OffContent="Off" IsOn="False" Margin="0,8,0,0"/>
+                    <TextBlock Text="Enable smooth inertia-based scrolling throughout the app." Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6" Margin="0,-4,0,0"/>
                 </StackPanel>
 
                 <!-- Logging -->

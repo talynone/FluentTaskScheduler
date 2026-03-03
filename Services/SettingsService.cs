@@ -18,6 +18,8 @@ namespace FluentTaskScheduler.Services
         public bool EnableLogging { get; set; } = true;
         public bool RunOnStartup { get; set; } = false;
         public bool SmoothScrolling { get; set; } = false;
+        public int WindowWidth { get; set; } = 1200;
+        public int WindowHeight { get; set; } = 800;
     }
 
     public static class SettingsService
@@ -170,6 +172,18 @@ namespace FluentTaskScheduler.Services
                 _settings.SmoothScrolling = value;
                 Save();
             }
+        }
+
+        public static int WindowWidth
+        {
+            get => _settings.WindowWidth;
+            set { _settings.WindowWidth = value; Save(); }
+        }
+
+        public static int WindowHeight
+        {
+            get => _settings.WindowHeight;
+            set { _settings.WindowHeight = value; Save(); }
         }
 
         public static void ExportSettings(string targetPath)

@@ -238,9 +238,23 @@ namespace FluentTaskScheduler
             } 
             catch { }
             
-            // Set default window size
+            // Restore saved window size (falls back to defaults if never saved)
             var appWindow = m_window.AppWindow;
-            appWindow.Resize(new Windows.Graphics.SizeInt32 { Width = 1200, Height = 800 });
+            appWindow.Resize(new Windows.Graphics.SizeInt32
+            {
+                Width = SS.WindowWidth,
+                Height = SS.WindowHeight
+            });
+
+            // Save size whenever the user resizes the window
+            appWindow.Changed += (s, e) =>
+            {
+                if (e.DidSizeChange)
+                {
+                    SS.WindowWidth = s.Size.Width;
+                    SS.WindowHeight = s.Size.Height;
+                }
+            };
             
             Frame rootFrame = new Frame();
             rootFrame.NavigationFailed += OnNavigationFailed;

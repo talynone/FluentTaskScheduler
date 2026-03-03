@@ -869,63 +869,6 @@ namespace FluentTaskScheduler.Services
                 }
             }
         }
-
-        public void DeleteFolderWithContents(string path)
-        {
-            using (var ts = new TaskService())
-            {
-                var folder = ts.GetFolder(path);
-                if (folder != null && folder.Path != "\\")
-                {
-                    DeleteFolderRecursive(folder);
-                    folder.Parent?.DeleteFolder(folder.Name);
-                }
-            }
-        }
-
-        private void DeleteFolderRecursive(TaskFolder folder)
-        {
-            foreach (var sub in folder.SubFolders.ToList())
-            {
-                DeleteFolderRecursive(sub);
-                folder.DeleteFolder(sub.Name);
-            }
-            foreach (Microsoft.Win32.TaskScheduler.Task task in folder.Tasks.ToList())
-                folder.DeleteTask(task.Name);
-        }
-
-        public void RenameFolder(string oldPath, string newName)
-        {
-            using (var ts = new TaskService())
-            {
-                var oldFolder = ts.GetFolder(oldPath);
-                if (oldFolder == null) throw new Exception("Folder not found.");
-
-                string parentPath = oldFolder.Parent?.Path ?? "\\";
-                string newPath = parentPath == "\\" ? "\\" + newName : parentPath + "\\" + newName;
-
-                // Create new folder
-                GetOrCreateFolder(ts, newPath);
-                var newFolder = ts.GetFolder(newPath);
-
-                // Move tasks
-                foreach (Microsoft.Win32.TaskScheduler.Task task in oldFolder.Tasks.ToList())
-                {
-                    try
-                    {
-                        var td = ts.NewTask();
-                        td.XmlText = task.Xml;
-                        newFolder.RegisterTaskDefinition(task.Name, td,
-                            TaskCreation.CreateOrUpdate, null, null, TaskLogonType.InteractiveToken);
-                        oldFolder.DeleteTask(task.Name);
-                    }
-                    catch { /* Skip tasks that can't be moved */ }
-                }
-
-                // Delete old folder (best-effort; may fail if it still has subfolders)
-                try { oldFolder.Parent?.DeleteFolder(oldFolder.Name); } catch { }
-            }
-        }
         public void RegisterTaskFromXml(string folderPath, string name, string xml)
         {
             using (var ts = new TaskService())

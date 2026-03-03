@@ -13,6 +13,14 @@ namespace FluentTaskScheduler
             this.InitializeComponent();
         }
 
+        private MainPage? _ownerMainPage;
+
+        protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
+        {
+            base.OnNavigatedTo(e);
+            if (e.Parameter is MainPage mp) _ownerMainPage = mp;
+        }
+
         private async void Page_Loaded(object sender, RoutedEventArgs e)
         {
             PageScrollViewer.IsScrollInertiaEnabled = FluentTaskScheduler.Services.SettingsService.SmoothScrolling;
@@ -23,7 +31,7 @@ namespace FluentTaskScheduler
         {
              if (sender is Button btn && btn.Tag is ScriptTemplateModel template)
              {
-                 MainPage.Current?.OpenCreateTaskFromTemplate(template);
+                 (_ownerMainPage ?? MainPage.Current)?.OpenCreateTaskFromTemplate(template);
              }
         }
     }

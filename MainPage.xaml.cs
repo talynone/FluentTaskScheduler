@@ -239,7 +239,7 @@ namespace FluentTaskScheduler
                     NavView.Header = "Script Library";
                     TasksViewGrid.Visibility = Visibility.Collapsed;
                     ContentFrame.Visibility = Visibility.Visible;
-                    ContentFrame.Navigate(typeof(ScriptLibraryPage));
+                    ContentFrame.Navigate(typeof(ScriptLibraryPage), this);
                     FolderTreeView.SelectedItem = null;
                 }
                 else

@@ -16,7 +16,22 @@ namespace FluentTaskScheduler
     /// </summary>
     public partial class App : Application
     {
-        public static Window? m_window;
+        // ── Window registry ──────────────────────────────────────────────────────
+        private sealed class WindowRecord
+        {
+            public string Name { get; }
+            public Window Win  { get; }
+            public bool IsHidden { get; set; }
+            public WindowRecord(string name, Window win) { Name = name; Win = win; }
+        }
+
+        private static readonly List<WindowRecord> _windows = new();
+        private static int _windowCounter = 0;
+        private static System.Threading.Mutex? _instanceMutex;
+        private static System.Threading.EventWaitHandle? _showInstanceEvent;
+
+        /// <summary>Backward-compat alias — still valid for file pickers, icon loading, etc.</summary>
+        public static Window? m_window => _windows.Count > 0 ? _windows[0].Win : null;
         public Window? MainWindow => m_window;
 
         [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
@@ -205,98 +220,151 @@ namespace FluentTaskScheduler
                 Environment.Exit(0);
                 return;
             }
-            
-            // GUI Mode continue...
-            m_window = new Window();
-            m_window.Title = "FluentTaskScheduler";
-            
-            // Try to set icon from file first (works when icon is copied to output)
-            try 
+
+            // ── Single-instance enforcement (GUI mode) ──────────────────────────
+            _instanceMutex = new System.Threading.Mutex(true, "FluentTaskScheduler_Instance", out bool isFirstInstance);
+            if (!isFirstInstance)
             {
-                string iconPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "AppIcon.ico");
-                if (System.IO.File.Exists(iconPath))
+                // Another GUI instance is already running — signal it to show itself and exit
+                try
                 {
-                    m_window.AppWindow.SetIcon(iconPath);
+                    var ev = System.Threading.EventWaitHandle.OpenExisting("FluentTaskScheduler_Show");
+                    ev.Set();
                 }
-                else
-                {
-                    // Fallback: Try Win32 API to load from embedded resources
-                    // Ensure window handle is valid
-                    var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(m_window);
-                    if (hwnd != IntPtr.Zero)
-                    {
-                        IntPtr hModule = GetModuleHandle(null);
-                        IntPtr hIcon = LoadImage(hModule, new IntPtr(32512), IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_SHARED);
-                        
-                        if (hIcon != IntPtr.Zero)
-                        {
-                            SendMessage(hwnd, WM_SETICON, ICON_SMALL, hIcon);
-                            SendMessage(hwnd, WM_SETICON, ICON_BIG, hIcon);
-                        }
-                    }
-                }
-            } 
-            catch { }
-            
-            // Restore saved window size (falls back to defaults if never saved)
-            var appWindow = m_window.AppWindow;
-            appWindow.Resize(new Windows.Graphics.SizeInt32
+                catch { }
+                Environment.Exit(0);
+                return;
+            }
+
+            // First instance: listen for show-signals from future instances
+            _showInstanceEvent = new System.Threading.EventWaitHandle(
+                false, System.Threading.EventResetMode.AutoReset, "FluentTaskScheduler_Show");
+            System.Threading.Tasks.Task.Run(() =>
             {
-                Width = SS.WindowWidth,
-                Height = SS.WindowHeight
+                while (true)
+                {
+                    _showInstanceEvent.WaitOne();
+                    var win = _windows.Count > 0 ? _windows[0].Win : null;
+                    win?.DispatcherQueue.TryEnqueue(() => { win.AppWindow.Show(); win.Activate(); });
+                }
             });
 
-            // Save size whenever the user resizes the window
-            appWindow.Changed += (s, e) =>
-            {
-                if (e.DidSizeChange)
-                {
-                    SS.WindowWidth = s.Size.Width;
-                    SS.WindowHeight = s.Size.Height;
-                }
-            };
-            
-            Frame rootFrame = new Frame();
-            rootFrame.NavigationFailed += OnNavigationFailed;
-            m_window.Content = rootFrame;
-            
-            // Force Dark Theme always
-            ApplyTheme(ElementTheme.Dark);
+            // GUI Mode: create and register the first window
+            CreateAndRegisterWindow();
 
-            rootFrame.Navigate(typeof(MainPage), e.Arguments);
-            
-            m_window.AppWindow.Closing += AppWindow_Closing;
-            m_window.Activate();
-
-            // Initialize tray icon
-            var trayHwnd = WinRT.Interop.WindowNative.GetWindowHandle(m_window);
+            // One-time tray init (uses the first window's HWND as the message sink)
+            var trayHwnd = WinRT.Interop.WindowNative.GetWindowHandle(_windows[0].Win);
             Services.TrayIconService.Initialize(trayHwnd);
-            Services.TrayIconService.ShowRequested += () =>
+
+            // Callback: returns all currently hidden windows for the tray menu
+            Services.TrayIconService.GetHiddenWindows = () =>
             {
-                m_window.AppWindow.Show();
-                m_window.Activate();
+                var list = new List<(string, Action, Action)>();
+                foreach (var rec in _windows)
+                {
+                    if (!rec.IsHidden) continue;
+                    var r = rec; // capture
+                    list.Add((
+                        r.Name,
+                        () => r.Win.DispatcherQueue.TryEnqueue(() => { r.Win.AppWindow.Show(); r.Win.Activate(); r.IsHidden = false; }),
+                        () => r.Win.DispatcherQueue.TryEnqueue(() => { r.IsHidden = false; r.Win.Close(); })
+                    ));
+                }
+                return list;
             };
+
+            Services.TrayIconService.NewWindowRequested += () =>
+                _windows[0].Win.DispatcherQueue.TryEnqueue(CreateAndRegisterWindow);
+
             Services.TrayIconService.ExitRequested += () => Environment.Exit(0);
             Services.TrayIconService.UpdateVisibility();
 
             Services.LogService.Info("Application started");
 
-            // Defer smooth scrolling apply until the visual tree is fully built
-            m_window.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            // Defer smooth scrolling until visual tree is built
+            _windows[0].Win.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
             {
                 ApplySmoothScrolling(SS.SmoothScrolling);
             });
         }
 
+        private void CreateAndRegisterWindow()
+        {
+            _windowCounter++;
+            string name = _windowCounter == 1 ? "Window 1" : $"Window {_windowCounter}";
+
+            var win = new Window();
+            win.Title = _windowCounter == 1 ? "FluentTaskScheduler" : $"FluentTaskScheduler — {name}";
+
+            var rec = new WindowRecord(name, win);
+            _windows.Add(rec);
+
+            // Icon
+            try
+            {
+                string iconPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "AppIcon.ico");
+                if (System.IO.File.Exists(iconPath))
+                    win.AppWindow.SetIcon(iconPath);
+                else
+                {
+                    var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(win);
+                    if (hwnd != IntPtr.Zero)
+                    {
+                        IntPtr hModule = GetModuleHandle(null);
+                        IntPtr hIcon = LoadImage(hModule, new IntPtr(32512), IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_SHARED);
+                        if (hIcon != IntPtr.Zero) { SendMessage(hwnd, WM_SETICON, ICON_SMALL, hIcon); SendMessage(hwnd, WM_SETICON, ICON_BIG, hIcon); }
+                    }
+                }
+            }
+            catch { }
+
+            // Size — first window restores saved size, subsequent windows use a slight offset
+            int offset = (_windowCounter - 1) * 30;
+            win.AppWindow.Resize(new Windows.Graphics.SizeInt32 { Width = SS.WindowWidth + offset, Height = SS.WindowHeight + offset });
+
+            // Save size changes for the first window only
+            if (_windowCounter == 1)
+            {
+                win.AppWindow.Changed += (s, e) =>
+                {
+                    if (e.DidSizeChange && !rec.IsHidden)
+                    {
+                        SS.WindowWidth  = s.Size.Width;
+                        SS.WindowHeight = s.Size.Height;
+                    }
+                };
+            }
+
+            // Frame & navigation
+            Frame rootFrame = new Frame();
+            rootFrame.NavigationFailed += OnNavigationFailed;
+            win.Content = rootFrame;
+            ApplyThemeToWindow(win);
+            rootFrame.Navigate(typeof(MainPage));
+
+            // Close-to-tray handler
+            win.AppWindow.Closing += (sender, args) =>
+            {
+                if (SS.MinimizeToTray && SS.EnableTrayIcon)
+                {
+                    args.Cancel = true;
+                    rec.IsHidden = true;
+                    sender.Hide();
+                    Services.NotificationService.ShowMinimizedToTray();
+                }
+                else
+                {
+                    // Actually closing — remove from registry
+                    _windows.Remove(rec);
+                }
+            };
+
+            win.Activate();
+        }
+
         private void AppWindow_Closing(Microsoft.UI.Windowing.AppWindow sender, Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
         {
-            // If Minimize to Tray is enabled AND Tray Icon is enabled
-            if (SS.MinimizeToTray && SS.EnableTrayIcon)
-            {
-                args.Cancel = true;
-                sender.Hide();
-                Services.NotificationService.ShowMinimizedToTray();
-            }
+            // Handled per-window inside CreateAndRegisterWindow
         }
 
         private void OnToastActivated(ToastNotificationActivatedEventArgsCompat e)
@@ -304,21 +372,19 @@ namespace FluentTaskScheduler
             var args = ToastArguments.Parse(e.Argument);
             if (args.TryGetValue("action", out string action) && action == "show")
             {
-                // Must marshal back to the UI thread
-                m_window?.DispatcherQueue.TryEnqueue(() =>
-                {
-                    m_window.AppWindow.Show();
-                    m_window.Activate();
-                });
+                // Restore the most-recently-hidden window, or the first window
+                var win = _windows.FindLast(r => r.IsHidden)?.Win ?? m_window;
+                win?.DispatcherQueue.TryEnqueue(() => { win.AppWindow.Show(); win.Activate(); });
             }
         }
 
         public void ApplySmoothScrolling(bool enable)
         {
-            if (m_window?.Content == null) return;
-            foreach (var sv in FindDescendants<ScrollViewer>(m_window.Content))
+            foreach (var rec in _windows)
             {
-                sv.IsScrollInertiaEnabled = enable;
+                if (rec.Win?.Content == null) continue;
+                foreach (var sv in FindDescendants<ScrollViewer>(rec.Win.Content))
+                    sv.IsScrollInertiaEnabled = enable;
             }
         }
 
@@ -338,51 +404,42 @@ namespace FluentTaskScheduler
 
         Microsoft.UI.Xaml.Media.SystemBackdrop? _backdrop;
 
-        public void ApplyTheme(ElementTheme theme)
+        private void ApplyThemeToWindow(Window win)
         {
-            if (m_window?.Content is Control root)
+            if (win?.Content is Control root)
             {
-                // Force Dark Theme
                 root.RequestedTheme = ElementTheme.Dark;
-                
-                // Reset backdrop first
-                m_window.SystemBackdrop = null;
+                win.SystemBackdrop = null;
 
                 if (SS.IsOledMode)
                 {
-                     // OLED: Pure Black, No Mica
-                     root.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black);
-                     // Opaque cards for OLED
-                     Application.Current.Resources["TaskCardBackground"] = Application.Current.Resources["CardBackgroundFillColorDefaultBrush"];
-                     Application.Current.Resources["TaskCardBorder"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                    root.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black);
+                    Application.Current.Resources["TaskCardBackground"] = Application.Current.Resources["CardBackgroundFillColorDefaultBrush"];
+                    Application.Current.Resources["TaskCardBorder"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
                 }
                 else if (SS.IsMicaEnabled && Microsoft.UI.Composition.SystemBackdrops.MicaController.IsSupported())
                 {
-                    // Mica Enabled: Very transparent to let backdrop show
                     root.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(2, 32, 32, 32));
-                    
                     if (_backdrop == null) _backdrop = new Microsoft.UI.Xaml.Media.MicaBackdrop();
-                    m_window.SystemBackdrop = _backdrop;
-                    
-                    // Very transparent cards to show Mica effect
+                    win.SystemBackdrop = _backdrop;
                     Application.Current.Resources["TaskCardBackground"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(25, 16, 16, 16));
                     Application.Current.Resources["TaskCardBorder"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(48, 255, 255, 255));
                 }
                 else
                 {
-                    // Mica Disabled (Standard Dark)
-                    // Ensure backdrop is cleared (already done at start of method, but strictly enforcing logic flow)
-                    m_window.SystemBackdrop = null; 
-                    _backdrop = null; // Dispose reference
-
-                    // Opaque Dark Grey Background
+                    win.SystemBackdrop = null;
+                    _backdrop = null;
                     root.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 32, 32, 32));
-                    
-                    // Opaque cards for standard dark mode
                     Application.Current.Resources["TaskCardBackground"] = Application.Current.Resources["CardBackgroundFillColorDefaultBrush"];
                     Application.Current.Resources["TaskCardBorder"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
                 }
             }
+        }
+
+        public void ApplyTheme(ElementTheme theme)
+        {
+            foreach (var rec in _windows)
+                ApplyThemeToWindow(rec.Win);
         }
 
         void OnNavigationFailed(object sender, NavigationFailedEventArgs e)

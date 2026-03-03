@@ -58,10 +58,15 @@ FluentTaskScheduler is a professional-grade wrapper for the Windows Task Schedul
 
 - **Themes**: Standard Dark Mode and specialized **OLED Mode** (Pure Black) for display longevity.
 - **Languages**: Native English (en-US) support.
+- **Smooth Scrolling**: Optional smooth/inertia scrolling throughout the app, disabled by default for a snappier feel.
+- **Window Size Memory**: The app remembers your last window size and restores it on next launch.
 
 ### 🧬 System Integration
 
-- **System Tray**: Minimize the app to the tray to keep your taskbar clean while the scheduler hums in the background.
+- **System Tray**: Minimize the app to the tray to keep your taskbar clean while the scheduler hums in the background. Disabled by default.
+- **Multi-Window Tray Management**: Open multiple windows and manage them independently from the tray right-click menu — restore or close individual windows, or open a new one, all from a single tray icon.
+- **Tray Notification**: A toast notification appears the first time the app is minimized to tray, with a click action to restore the window instantly.
+- **Single Instance**: Launching the app a second time brings the existing window to the front instead of opening a duplicate.
 - **Run on Startup**: Option to launch automatically with Windows.
 - **Notifications**: Get native toast notifications when tasks complete or fail.
 

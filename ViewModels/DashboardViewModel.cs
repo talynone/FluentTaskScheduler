@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
@@ -11,6 +12,15 @@ using Microsoft.UI.Dispatching;
 
 namespace FluentTaskScheduler.ViewModels
 {
+    public class DailyChartPoint
+    {
+        public string Label { get; set; } = "";
+        public int Successes { get; set; }
+        public int Failures { get; set; }
+        public double SuccessHeight { get; set; }
+        public double FailureHeight { get; set; }
+        public double LabelOpacity { get; set; } = 0.6;
+    }
     public class DashboardViewModel : INotifyPropertyChanged
     {
         private readonly TaskServiceWrapper _taskService;
@@ -29,6 +39,7 @@ namespace FluentTaskScheduler.ViewModels
             _taskService = new TaskServiceWrapper();
             RecentHistory = new ObservableCollection<TaskHistoryEntry>();
             UpcomingTasks = new ObservableCollection<ScheduledTaskModel>();
+            DailyHistory = new ObservableCollection<DailyChartPoint>();
         }
 
         public int TotalTasks
@@ -75,6 +86,7 @@ namespace FluentTaskScheduler.ViewModels
 
         public ObservableCollection<TaskHistoryEntry> RecentHistory { get; }
         public ObservableCollection<ScheduledTaskModel> UpcomingTasks { get; }
+        public ObservableCollection<DailyChartPoint> DailyHistory { get; }
 
         public async Task LoadDashboardData()
         {
@@ -92,13 +104,14 @@ namespace FluentTaskScheduler.ViewModels
                     int enabled = allTasks.Count(t => t.IsEnabled);
                     int disabled = allTasks.Count(t => !t.IsEnabled);
 
-                    // 3. Get Recent History
+                    // 3. Get Recent History + chart data
                     int success = 0;
                     int failed = 0;
-                    
-                    var historyEntries = new System.Collections.Generic.List<TaskHistoryEntry>();
+                    var historyEntries = new List<TaskHistoryEntry>();
+                    var allHistoryForChart = new List<TaskHistoryEntry>();
 
-                    foreach (var task in allTasks.Where(t => t.LastRunTime.HasValue).OrderByDescending(t => t.LastRunTime).Take(10))
+                    foreach (var task in allTasks.Where(t => t.LastRunTime.HasValue)
+                                                  .OrderByDescending(t => t.LastRunTime).Take(20))
                     {
                         var taskHistory = _taskService.GetTaskHistory(task.Path);
                         if (taskHistory.Any())
@@ -106,9 +119,35 @@ namespace FluentTaskScheduler.ViewModels
                             var last = taskHistory.First();
                             if (last.Result == "Task Completed") success++;
                             else if (last.Result == "Task Failed") failed++;
-                            
                             historyEntries.AddRange(taskHistory.Take(5));
                         }
+                        allHistoryForChart.AddRange(taskHistory);
+                    }
+
+                    // 4. Build 7-day chart (last 7 days, oldest first)
+                    var today = DateTime.Today;
+                    var chartPoints = Enumerable.Range(0, 7)
+                        .Select(i => today.AddDays(-6 + i))
+                        .Select(day =>
+                        {
+                            var dayEntries = allHistoryForChart.Where(h =>
+                                DateTime.TryParse(h.Time, out var dt) && dt.Date == day);
+                            return new DailyChartPoint
+                            {
+                                Label = day == today ? "Today" : day.ToString("ddd"),
+                                Successes = dayEntries.Count(e => e.Result == "Task Completed"),
+                                Failures  = dayEntries.Count(e => e.Result != "Task Completed"
+                                                                && !string.IsNullOrEmpty(e.Result)),
+                                LabelOpacity = day == today ? 1.0 : 0.6
+                            };
+                        }).ToList();
+
+                    const double MaxBarHeight = 100.0;
+                    int maxVal = Math.Max(1, chartPoints.Max(p => Math.Max(p.Successes, p.Failures)));
+                    foreach (var p in chartPoints)
+                    {
+                        p.SuccessHeight = (p.Successes / (double)maxVal) * MaxBarHeight;
+                        p.FailureHeight = (p.Failures  / (double)maxVal) * MaxBarHeight;
                     }
 
                     // 4. Calculate Health Score
@@ -134,15 +173,15 @@ namespace FluentTaskScheduler.ViewModels
 
                         RecentHistory.Clear();
                         foreach (var h in historyEntries.OrderByDescending(x => x.Time).Take(10))
-                        {
                             RecentHistory.Add(h);
-                        }
 
                         UpcomingTasks.Clear();
                         foreach (var u in upcoming)
-                        {
                             UpcomingTasks.Add(u);
-                        }
+
+                        DailyHistory.Clear();
+                        foreach (var p in chartPoints)
+                            DailyHistory.Add(p);
                     });
                 });
             }

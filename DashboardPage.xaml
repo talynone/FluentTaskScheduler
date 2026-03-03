@@ -144,6 +144,63 @@
                         </ListView>
                     </StackPanel>
                 </Grid>
+
+                <!-- Run History Chart (last 7 days) -->
+                <StackPanel Spacing="10">
+                    <!-- Header + Legend -->
+                    <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                        <TextBlock Text="Run History — Last 7 Days" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <Rectangle Width="12" Height="12" Fill="#4CAF50" RadiusX="2" RadiusY="2"/>
+                            <TextBlock Text="Success" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.7" VerticalAlignment="Center"/>
+                            <Rectangle Width="12" Height="12" Fill="#FF6B6B" RadiusX="2" RadiusY="2" Margin="8,0,0,0"/>
+                            <TextBlock Text="Failure" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.7" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Chart card -->
+                    <Grid Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8"
+                          Padding="24,16" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.DailyHistory, Mode=OneWay}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="0"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="viewmodels:DailyChartPoint">
+                                    <StackPanel HorizontalAlignment="Center" Margin="0,0,20,0">
+                                        <!-- Bars -->
+                                        <Grid Height="110" Width="36">
+                                            <StackPanel Orientation="Horizontal" Spacing="3"
+                                                        VerticalAlignment="Bottom" HorizontalAlignment="Center">
+                                                <Rectangle Fill="#4CAF50" Width="14"
+                                                           Height="{x:Bind SuccessHeight}"
+                                                           VerticalAlignment="Bottom" RadiusX="3" RadiusY="3"/>
+                                                <Rectangle Fill="#FF6B6B" Width="14"
+                                                           Height="{x:Bind FailureHeight}"
+                                                           VerticalAlignment="Bottom" RadiusX="3" RadiusY="3"/>
+                                            </StackPanel>
+                                        </Grid>
+                                        <!-- Counts -->
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                                                    Spacing="2" Margin="0,5,0,0">
+                                            <TextBlock Text="{x:Bind Successes}" FontSize="10"
+                                                       Foreground="#4CAF50" HorizontalAlignment="Center"/>
+                                            <TextBlock Text="/" FontSize="10" Opacity="0.4"/>
+                                            <TextBlock Text="{x:Bind Failures}" FontSize="10"
+                                                       Foreground="#FF6B6B" HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                        <!-- Day label -->
+                                        <TextBlock Text="{x:Bind Label}" HorizontalAlignment="Center"
+                                                   FontSize="11" Opacity="{x:Bind LabelOpacity}" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
+                </StackPanel>
+
             </StackPanel>
         </ScrollViewer>
         

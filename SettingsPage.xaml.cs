@@ -32,10 +32,8 @@ namespace FluentTaskScheduler
             // Notifications
             NotificationsToggle.IsOn = SettingsService.ShowNotifications;
             
-            // System Tray
+            // Minimize to Tray (single toggle now controls both)
             TrayIconToggle.IsOn = SettingsService.EnableTrayIcon;
-            MinimizeToTrayCheck.IsChecked = SettingsService.MinimizeToTray;
-            MinimizeToTrayCheck.IsEnabled = SettingsService.EnableTrayIcon;
 
             // Run on Startup
             RunOnStartupToggle.IsOn = SettingsService.RunOnStartup;
@@ -49,7 +47,6 @@ namespace FluentTaskScheduler
             // Subscribe events
             NotificationsToggle.Toggled += NotificationsToggle_Toggled;
             TrayIconToggle.Toggled += TrayIconToggle_Toggled;
-            MinimizeToTrayCheck.Click += MinimizeToTrayCheck_Click;
             RunOnStartupToggle.Toggled += RunOnStartupToggle_Toggled;
             LoggingToggle.Toggled += LoggingToggle_Toggled;
             SmoothScrollingToggle.Toggled += SmoothScrollingToggle_Toggled;
@@ -101,15 +98,9 @@ namespace FluentTaskScheduler
         {
             if (!_isLoaded) return;
             SettingsService.EnableTrayIcon = TrayIconToggle.IsOn;
-            MinimizeToTrayCheck.IsEnabled = TrayIconToggle.IsOn;
+            SettingsService.MinimizeToTray = TrayIconToggle.IsOn;
             TrayIconService.UpdateVisibility();
-            LogService.Info($"System Tray: {(TrayIconToggle.IsOn ? "enabled" : "disabled")}");
-        }
-
-        private void MinimizeToTrayCheck_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isLoaded) return;
-            SettingsService.MinimizeToTray = MinimizeToTrayCheck.IsChecked ?? false;
+            LogService.Info($"Minimize to Tray: {(TrayIconToggle.IsOn ? "enabled" : "disabled")}");
         }
 
         private void RunOnStartupToggle_Toggled(object sender, RoutedEventArgs e)

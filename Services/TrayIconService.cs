@@ -71,11 +71,15 @@ namespace FluentTaskScheduler.Services
         [DllImport("comctl32.dll")] private static extern bool RemoveWindowSubclass(IntPtr hWnd, SUBCLASSPROC pfnSubclass, IntPtr uIdSubclass);
         [DllImport("comctl32.dll")] private static extern IntPtr DefSubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
 
+        private const int NIM_MODIFY = 0x00000001;
+
         // State
         private static NOTIFYICONDATA _nid;
         private static IntPtr _hIcon = IntPtr.Zero;
         private static bool _isCreated = false;
         private static IntPtr _hwnd = IntPtr.Zero;
+        private static int _badgeCount = -1;
+        private static IntPtr _badgeIcon = IntPtr.Zero;
 
         // ── Public API ──────────────────────────────────────────────────────────────
         /// <summary>
@@ -132,6 +136,7 @@ namespace FluentTaskScheduler.Services
         public static void Dispose()
         {
             Hide();
+            if (_badgeIcon != IntPtr.Zero) { DestroyIcon(_badgeIcon); _badgeIcon = IntPtr.Zero; }
             if (_hIcon != IntPtr.Zero) { DestroyIcon(_hIcon); _hIcon = IntPtr.Zero; }
             if (_hwnd != IntPtr.Zero && _subclassProc != null)
                 RemoveWindowSubclass(_hwnd, _subclassProc, IntPtr.Zero);
@@ -141,6 +146,59 @@ namespace FluentTaskScheduler.Services
         {
             if (SettingsService.EnableTrayIcon) Show();
             else Hide();
+        }
+
+        /// <summary>Overlays a running-task count badge on the tray icon. Pass 0 to restore the plain icon.</summary>
+        public static void UpdateBadge(int runningCount)
+        {
+            if (_badgeCount == runningCount) return;
+            _badgeCount = runningCount;
+
+            // Clean up previous badge icon
+            if (_badgeIcon != IntPtr.Zero) { DestroyIcon(_badgeIcon); _badgeIcon = IntPtr.Zero; }
+
+            if (_hIcon != IntPtr.Zero)
+            {
+                try
+                {
+                    string iconPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "AppIcon.ico");
+                    using var baseIcon = System.IO.File.Exists(iconPath)
+                        ? new System.Drawing.Icon(iconPath, 32, 32)
+                        : System.Drawing.SystemIcons.Application;
+
+                    using var bmp = new System.Drawing.Bitmap(32, 32, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                    using var g = System.Drawing.Graphics.FromImage(bmp);
+                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+                    // Draw base icon
+                    g.DrawIcon(baseIcon, new System.Drawing.Rectangle(0, 0, 32, 32));
+
+                    if (runningCount > 0)
+                    {
+                        // Badge circle in bottom-right corner
+                        const int BadgeSize = 14;
+                        int bx = 32 - BadgeSize, by = 32 - BadgeSize;
+                        g.FillEllipse(System.Drawing.Brushes.OrangeRed,
+                            bx, by, BadgeSize, BadgeSize);
+
+                        // Badge number
+                        string text = runningCount > 9 ? "9+" : runningCount.ToString();
+                        using var font = new System.Drawing.Font("Segoe UI", runningCount > 9 ? 6f : 7.5f,
+                            System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
+                        var textSize = g.MeasureString(text, font);
+                        g.DrawString(text, font, System.Drawing.Brushes.White,
+                            bx + (BadgeSize - textSize.Width) / 2,
+                            by + (BadgeSize - textSize.Height) / 2);
+                    }
+
+                    _badgeIcon = bmp.GetHicon();
+                }
+                catch { }
+            }
+
+            if (!_isCreated) return;
+            _nid.hIcon = _badgeIcon != IntPtr.Zero ? _badgeIcon : _hIcon;
+            Shell_NotifyIcon(NIM_MODIFY, ref _nid);
         }
 
         // ── Context Menu ────────────────────────────────────────────────────────────

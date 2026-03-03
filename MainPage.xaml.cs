@@ -100,6 +100,15 @@ namespace FluentTaskScheduler
             _ = ViewModel.LoadTasksAsync();
             TaskListView.Focus(FocusState.Programmatic);
             UpdateFolderTreeMaxHeight();
+
+            // Feature 3: restore last-used folder
+            string saved = Services.SettingsService.LastFolderPath;
+            if (!string.IsNullOrEmpty(saved) && saved != "\\")
+            {
+                _currentFolderPath = saved;
+                ViewModel.SetFilter(saved);
+            }
+
             // Defer one frame so the ListView control template is fully applied before we set its internal ScrollViewer
             DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
             {
@@ -203,6 +212,7 @@ namespace FluentTaskScheduler
             if (args.InvokedItem is TreeViewNode node && _treeNodeFolderMap.TryGetValue(node, out var folder))
             {
                 _currentFolderPath = folder.Path;
+                Services.SettingsService.LastFolderPath = folder.Path; // Feature 3: persist
                 ViewModel.SetFilter(folder.Path);
                 
                 // Restore Task View
@@ -828,6 +838,50 @@ namespace FluentTaskScheduler
         private void RunTaskAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { args.Handled = true; if (ViewModel.SelectedTask != null) RunTask_Click(sender, new RoutedEventArgs()); }
         private void DeleteTaskAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { args.Handled = true; if (FocusManager.GetFocusedElement() is not TextBox) DeleteTask_Click(sender, new RoutedEventArgs()); }
         private void EscapeAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { args.Handled = true; try { TaskDetailsDialog.Hide(); } catch { } try { TaskEditDialog.Hide(); } catch { } }
+        private void ShortcutsAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { args.Handled = true; ShowShortcutsDialog(); }
+
+        // Feature 1: Keyboard shortcuts dialog
+        private void ShortcutsButton_Click(object sender, RoutedEventArgs e) => ShowShortcutsDialog();
+
+        private async void ShowShortcutsDialog()
+        {
+            ShortcutsDialog.XamlRoot = this.XamlRoot;
+            try { await ShortcutsDialog.ShowAsync(); } catch { }
+        }
+
+        // Feature 2: Sort button with flyout
+        private void SortButton_Click(object sender, RoutedEventArgs e)
+        {
+            var flyout = new MenuFlyout();
+            string arrow(string col) =>
+                ViewModel.SortColumn == col ? (ViewModel.SortAscending ? " ▲" : " ▼") : "";
+
+            void AddItem(string label, string col)
+            {
+                var item = new MenuFlyoutItem { Text = label + arrow(col) };
+                item.Click += (s, _) => { ViewModel.SortBy(col); UpdateSortButtonText(); };
+                flyout.Items.Add(item);
+            }
+
+            AddItem("Name",         "Name");
+            AddItem("Status",       "Status");
+            AddItem("Next Run",     "NextRun");
+            AddItem("Last Run",     "LastRun");
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            var clear = new MenuFlyoutItem { Text = "Clear Sort" };
+            clear.Click += (s, _) => { ViewModel.ClearSort(); UpdateSortButtonText(); };
+            flyout.Items.Add(clear);
+
+            flyout.ShowAt(SortButton);
+        }
+
+        private void UpdateSortButtonText()
+        {
+            string arrow = ViewModel.SortAscending ? "▲" : "▼";
+            SortButton.Content = string.IsNullOrEmpty(ViewModel.SortColumn)
+                ? "Sort \u2195"
+                : $"Sort {arrow} {ViewModel.SortColumn}";
+        }
 
         private async void CreateFolder_Click(string parentPath)
         {

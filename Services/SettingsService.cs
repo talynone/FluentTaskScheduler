@@ -20,6 +20,7 @@ namespace FluentTaskScheduler.Services
         public bool SmoothScrolling { get; set; } = false;
         public int WindowWidth { get; set; } = 1200;
         public int WindowHeight { get; set; } = 800;
+        public string LastFolderPath { get; set; } = "\\";
     }
 
     public static class SettingsService
@@ -184,6 +185,12 @@ namespace FluentTaskScheduler.Services
         {
             get => _settings.WindowHeight;
             set { _settings.WindowHeight = value; Save(); }
+        }
+
+        public static string LastFolderPath
+        {
+            get => _settings.LastFolderPath;
+            set { _settings.LastFolderPath = value; Save(); }
         }
 
         public static void ExportSettings(string targetPath)

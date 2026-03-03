@@ -21,6 +21,10 @@ namespace FluentTaskScheduler.ViewModels
         private string _filterTag = "all";
         private ScheduledTaskModel? _selectedTask;
 
+        // Sorting
+        public string SortColumn { get; private set; } = "";
+        public bool SortAscending { get; private set; } = true;
+
         public event PropertyChangedEventHandler? PropertyChanged;
 
         public ObservableCollection<ScheduledTaskModel> FilteredTasks { get; } = new();
@@ -71,6 +75,7 @@ namespace FluentTaskScheduler.ViewModels
                 var tasks = await Task.Run(() => _taskService.GetAllTasks());
                 _allTasks = tasks ?? new List<ScheduledTaskModel>();
                 ApplyFilters();
+                Services.TrayIconService.UpdateBadge(_allTasks.Count(t => t.State == "Running"));
             }
             catch (Exception ex)
             {
@@ -101,6 +106,22 @@ namespace FluentTaskScheduler.ViewModels
         private bool IsGlobalFilter(string tag)
         {
             return tag == "all" || tag == "running" || tag == "enabled" || tag == "disabled";
+        }
+
+        /// <summary>Cycles sort: same column toggles Asc/Desc, new column defaults to Asc.</summary>
+        public void SortBy(string column)
+        {
+            if (SortColumn == column) SortAscending = !SortAscending;
+            else { SortColumn = column; SortAscending = true; }
+            ApplyFilters();
+        }
+
+        /// <summary>Clears any active sort.</summary>
+        public void ClearSort()
+        {
+            SortColumn = "";
+            SortAscending = true;
+            ApplyFilters();
         }
 
         private void ApplyFilters()
@@ -134,8 +155,15 @@ namespace FluentTaskScheduler.ViewModels
                 else if (_filterTag == "disabled") query = query.Where(t => !t.IsEnabled);
             }
 
-            var results = query.ToList();
-            UpdateFilteredTasksCollection(results);
+            var results = SortColumn switch
+            {
+                "Name"    => SortAscending ? query.OrderBy(t => t.Name)         : query.OrderByDescending(t => t.Name),
+                "Status"  => SortAscending ? query.OrderBy(t => t.State)        : query.OrderByDescending(t => t.State),
+                "NextRun" => SortAscending ? query.OrderBy(t => t.NextRunTime)  : query.OrderByDescending(t => t.NextRunTime),
+                "LastRun" => SortAscending ? query.OrderBy(t => t.LastRunTime)  : query.OrderByDescending(t => t.LastRunTime),
+                _         => query
+            };
+            UpdateFilteredTasksCollection(results.ToList());
         }
 
         private void UpdateFilteredTasksCollection(List<ScheduledTaskModel> results)

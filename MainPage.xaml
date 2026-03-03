@@ -16,6 +16,7 @@
         <KeyboardAccelerator Key="R" Modifiers="Control" Invoked="RunTaskAccelerator_Invoked"/>
         <KeyboardAccelerator Key="Delete" Invoked="DeleteTaskAccelerator_Invoked"/>
         <KeyboardAccelerator Key="Escape" Invoked="EscapeAccelerator_Invoked"/>
+        <KeyboardAccelerator Key="F1" Invoked="ShortcutsAccelerator_Invoked"/>
     </Page.KeyboardAccelerators>
 
     <Page.Resources>
@@ -164,6 +165,8 @@
                     <AutoSuggestBox x:Name="SearchBox" x:Uid="SearchBox" QueryIcon="Find" PlaceholderText="Search tasks..." Width="300" TextChanged="SearchBox_TextChanged"/>
                     <Button x:Uid="RefreshButton" Content="Refresh" Click="RefreshButton_Click" />
                     <Button x:Name="ImportTaskButton" Content="Import Task" Click="ImportTask_Click" />
+                    <Button x:Name="SortButton" Content="Sort ↕" Click="SortButton_Click" />
+                    <Button x:Name="ShortcutsButton" Content="?" Width="38" ToolTipService.ToolTip="Keyboard Shortcuts (F1)" Click="ShortcutsButton_Click" />
                 </StackPanel>
 
                 <ListView x:Name="TaskListView" 
@@ -212,6 +215,45 @@
             </Grid>
             
         </NavigationView>
+
+        <!-- Keyboard Shortcuts Dialog -->
+        <ContentDialog x:Name="ShortcutsDialog"
+                       Title="Keyboard Shortcuts"
+                       CloseButtonText="Close"
+                       DefaultButton="Close">
+            <StackPanel Spacing="8" MinWidth="340">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="140"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                        <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Headers -->
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Shortcut" Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold" Opacity="0.6" Margin="0,0,0,6"/>
+                    <TextBlock Grid.Row="0" Grid.Column="1" Text="Action"   Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold" Opacity="0.6" Margin="0,0,0,6"/>
+
+                    <!-- Rows -->
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Ctrl + N"  Style="{StaticResource BodyTextBlockStyle}" FontFamily="Consolas"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="New Task"/>
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Ctrl + E"  Style="{StaticResource BodyTextBlockStyle}" FontFamily="Consolas"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1" Text="Edit Selected Task"/>
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Ctrl + R"  Style="{StaticResource BodyTextBlockStyle}" FontFamily="Consolas"/>
+                    <TextBlock Grid.Row="3" Grid.Column="1" Text="Run Selected Task"/>
+                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Delete"    Style="{StaticResource BodyTextBlockStyle}" FontFamily="Consolas"/>
+                    <TextBlock Grid.Row="4" Grid.Column="1" Text="Delete Selected Task"/>
+                    <TextBlock Grid.Row="5" Grid.Column="0" Text="F5"        Style="{StaticResource BodyTextBlockStyle}" FontFamily="Consolas"/>
+                    <TextBlock Grid.Row="5" Grid.Column="1" Text="Refresh Task List"/>
+                    <TextBlock Grid.Row="6" Grid.Column="0" Text="Esc"       Style="{StaticResource BodyTextBlockStyle}" FontFamily="Consolas"/>
+                    <TextBlock Grid.Row="6" Grid.Column="1" Text="Close Dialogs / Clear Selection"/>
+                    <TextBlock Grid.Row="7" Grid.Column="0" Text="F1"        Style="{StaticResource BodyTextBlockStyle}" FontFamily="Consolas"/>
+                    <TextBlock Grid.Row="7" Grid.Column="1" Text="Show This Dialog"/>
+                </Grid>
+            </StackPanel>
+        </ContentDialog>
 
         <ContentDialog x:Name="TaskDetailsDialog"
                        CloseButtonText="Close"

@@ -1,7 +1,9 @@
 using System;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Windows.ApplicationModel;
@@ -15,32 +17,36 @@ namespace FluentTaskScheduler.ViewModels
         public string Command { get; set; } = "";
         public string Arguments { get; set; } = "";
         public bool RunAsAdmin { get; set; }
+
+        // Runtime-only, not serialized
+        [JsonIgnore] public bool IsUserTemplate { get; set; }
+        [JsonIgnore] public Visibility DeleteVisibility => IsUserTemplate ? Visibility.Visible : Visibility.Collapsed;
     }
 
     public class ScriptLibraryViewModel
     {
+        private static readonly string _userTemplatesPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "FluentTaskScheduler", "user_templates.json");
+
+        private static readonly JsonSerializerOptions _json = new() { WriteIndented = true };
+
         public ObservableCollection<ScriptTemplateModel> Scripts { get; } = new();
 
         public async Task LoadScriptsAsync()
         {
             if (Scripts.Count > 0) return;
 
+            // Built-in templates
             try
             {
-                // Path relative to execution or package
-                // In packaged app, use Package.Current.InstalledLocation
-                // But this is unpacked potentially? Let's try basic IO first, fallback to Package.
-                
                 string json = "";
-                string fullPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Scripts.json");
-                
+                string fullPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Scripts.json");
+
                 if (File.Exists(fullPath))
-                {
                     json = await File.ReadAllTextAsync(fullPath);
-                }
                 else
                 {
-                    // Fallback for packaged app
                     try
                     {
                         var storageFile = await Package.Current.InstalledLocation.GetFileAsync("Assets\\Scripts.json");
@@ -53,15 +59,50 @@ namespace FluentTaskScheduler.ViewModels
                 {
                     var data = JsonSerializer.Deserialize<System.Collections.Generic.List<ScriptTemplateModel>>(json);
                     if (data != null)
-                    {
                         foreach (var item in data) Scripts.Add(item);
-                    }
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Error loading scripts: {ex}"); }
+
+            // User templates (appended after built-ins)
+            LoadUserTemplates();
+        }
+
+        public void AddUserTemplate(ScriptTemplateModel model)
+        {
+            model.IsUserTemplate = true;
+            Scripts.Add(model);
+            SaveUserTemplates();
+        }
+
+        public void DeleteUserTemplate(ScriptTemplateModel model)
+        {
+            Scripts.Remove(model);
+            SaveUserTemplates();
+        }
+
+        private void LoadUserTemplates()
+        {
+            try
             {
-                System.Diagnostics.Debug.WriteLine($"Error loading scripts: {ex}");
+                if (!File.Exists(_userTemplatesPath)) return;
+                var json = File.ReadAllText(_userTemplatesPath);
+                var data = JsonSerializer.Deserialize<System.Collections.Generic.List<ScriptTemplateModel>>(json);
+                if (data != null)
+                    foreach (var item in data) { item.IsUserTemplate = true; Scripts.Add(item); }
             }
+            catch { }
+        }
+
+        private void SaveUserTemplates()
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(_userTemplatesPath)!);
+                var userTemplates = Scripts.Where(s => s.IsUserTemplate).ToList();
+                File.WriteAllText(_userTemplatesPath, JsonSerializer.Serialize(userTemplates, _json));
+            }
+            catch { }
         }
     }
 }

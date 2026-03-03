@@ -8,12 +8,12 @@ namespace FluentTaskScheduler
     {
         public ScriptLibraryViewModel ViewModel { get; } = new();
 
+        private MainPage? _ownerMainPage;
+
         public ScriptLibraryPage()
         {
             this.InitializeComponent();
         }
-
-        private MainPage? _ownerMainPage;
 
         protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
         {
@@ -29,10 +29,54 @@ namespace FluentTaskScheduler
 
         private void ScheduleButton_Click(object sender, RoutedEventArgs e)
         {
-             if (sender is Button btn && btn.Tag is ScriptTemplateModel template)
-             {
-                 (_ownerMainPage ?? MainPage.Current)?.OpenCreateTaskFromTemplate(template);
-             }
+            if (sender is Button btn && btn.Tag is ScriptTemplateModel template)
+                (_ownerMainPage ?? MainPage.Current)?.OpenCreateTaskFromTemplate(template);
+        }
+
+        // ── Custom templates ─────────────────────────────────────────────────────
+
+        private async void CreateTemplateButton_Click(object sender, RoutedEventArgs e)
+        {
+            TemplateName.Text = "";
+            TemplateDesc.Text = "";
+            TemplateCommand.Text = "";
+            TemplateArgs.Text = "";
+            TemplateAdmin.IsChecked = false;
+
+            CreateTemplateDialog.XamlRoot = this.XamlRoot;
+            await CreateTemplateDialog.ShowAsync();
+        }
+
+        private void CreateTemplateDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
+        {
+            if (string.IsNullOrWhiteSpace(TemplateName.Text)) { args.Cancel = true; return; }
+
+            ViewModel.AddUserTemplate(new ScriptTemplateModel
+            {
+                Name        = TemplateName.Text.Trim(),
+                Description = TemplateDesc.Text.Trim(),
+                Command     = TemplateCommand.Text.Trim(),
+                Arguments   = TemplateArgs.Text.Trim(),
+                RunAsAdmin  = TemplateAdmin.IsChecked == true
+            });
+        }
+
+        private async void DeleteTemplateButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button btn || btn.Tag is not ScriptTemplateModel template) return;
+
+            var confirm = new ContentDialog
+            {
+                Title           = "Delete Template",
+                Content         = $"Delete '{template.Name}'?",
+                PrimaryButtonText = "Delete",
+                CloseButtonText = "Cancel",
+                DefaultButton   = ContentDialogButton.Close,
+                XamlRoot        = this.XamlRoot
+            };
+
+            if (await confirm.ShowAsync() == ContentDialogResult.Primary)
+                ViewModel.DeleteUserTemplate(template);
         }
     }
 }

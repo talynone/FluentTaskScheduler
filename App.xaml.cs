@@ -345,7 +345,7 @@ namespace FluentTaskScheduler
             // Close-to-tray handler
             win.AppWindow.Closing += (sender, args) =>
             {
-                if (SS.MinimizeToTray && SS.EnableTrayIcon)
+                if (SS.EnableTrayIcon)
                 {
                     args.Cancel = true;
                     rec.IsHidden = true;

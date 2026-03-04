@@ -115,8 +115,36 @@ namespace FluentTaskScheduler
                 ApplySmoothScrollingSelf(Services.SettingsService.SmoothScrolling);
             });
 
-            // Check for new release and show "What's New" popup if version changed
-            _ = CheckAndShowChangelogAsync();
+            // Show startup dialogs in order: onboarding first, then changelog
+            _ = CheckStartupDialogsAsync();
+        }
+
+        private async System.Threading.Tasks.Task CheckStartupDialogsAsync()
+        {
+            // Await onboarding first — on a fresh install the user must finish the
+            // walkthrough before the "What's New" popup is shown on top.
+            await CheckAndShowOnboardingAsync();
+
+            // Only reaches here once onboarding is fully dismissed.
+            await CheckAndShowChangelogAsync();
+        }
+
+        private async System.Threading.Tasks.Task CheckAndShowOnboardingAsync()
+        {
+            if (Services.SettingsService.HasCompletedOnboarding) return;
+
+            var tcs = new System.Threading.Tasks.TaskCompletionSource();
+            DispatcherQueue.TryEnqueue(async () =>
+            {
+                try
+                {
+                    var dialog = new Dialogs.OnboardingDialog { XamlRoot = this.XamlRoot };
+                    await dialog.ShowAsync();
+                }
+                catch { /* XamlRoot not ready or dialog already open — skip silently */ }
+                finally { tcs.TrySetResult(); }
+            });
+            await tcs.Task;
         }
 
         private async System.Threading.Tasks.Task CheckAndShowChangelogAsync()

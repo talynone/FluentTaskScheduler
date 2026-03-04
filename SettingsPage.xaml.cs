@@ -144,6 +144,15 @@ namespace FluentTaskScheduler
             await dialog.ShowAsync();
         }
 
+        private async void ReplayOnboardingButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Reset flag so the walkthrough can be shown again on next launch too
+            Services.SettingsService.HasCompletedOnboarding = false;
+
+            var dialog = new Dialogs.OnboardingDialog { XamlRoot = this.XamlRoot };
+            await dialog.ShowAsync();
+        }
+
         private void OpenLogButton_Click(object sender, RoutedEventArgs e)
         {
             LogService.OpenLogFile();

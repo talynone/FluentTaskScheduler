@@ -22,6 +22,7 @@ namespace FluentTaskScheduler.Services
         public int WindowHeight { get; set; } = 800;
         public string LastFolderPath { get; set; } = "\\";
         public string LastSeenVersion { get; set; } = "";
+        public bool HasCompletedOnboarding { get; set; } = false;
     }
 
     public static class SettingsService
@@ -198,6 +199,12 @@ namespace FluentTaskScheduler.Services
         {
             get => _settings.LastSeenVersion;
             set { _settings.LastSeenVersion = value; Save(); }
+        }
+
+        public static bool HasCompletedOnboarding
+        {
+            get => _settings.HasCompletedOnboarding;
+            set { _settings.HasCompletedOnboarding = value; Save(); }
         }
 
         public static void ExportSettings(string targetPath)

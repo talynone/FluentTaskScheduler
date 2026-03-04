@@ -1,5 +1,5 @@
 # To Do:
-1. Onboarding walkthrough for first launch
+1. 
 2. Folder management UI (create, rename, delete task folders)
    **_More TBD_**
 
@@ -17,3 +17,4 @@
 11. Task run history chart on the Dashboard (graph of successes vs. failures over time)
 12. Animated status indicator for currently-running tasks
 13. "What's New" changelog popup after update
+14. Onboarding walkthrough for first launch

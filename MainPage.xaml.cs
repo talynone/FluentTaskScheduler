@@ -114,6 +114,41 @@ namespace FluentTaskScheduler
             {
                 ApplySmoothScrollingSelf(Services.SettingsService.SmoothScrolling);
             });
+
+            // Check for new release and show "What's New" popup if version changed
+            _ = CheckAndShowChangelogAsync();
+        }
+
+        private async System.Threading.Tasks.Task CheckAndShowChangelogAsync()
+        {
+            try
+            {
+                var release = await Services.GitHubReleaseService.GetLatestReleaseAsync();
+                if (release == null) return;
+
+                string lastSeen = Services.SettingsService.LastSeenVersion;
+                if (string.Equals(release.TagName, lastSeen, StringComparison.OrdinalIgnoreCase)) return;
+
+                // New version — marshal back to UI thread via TCS
+                var tcs = new System.Threading.Tasks.TaskCompletionSource();
+                DispatcherQueue.TryEnqueue(async () =>
+                {
+                    try
+                    {
+                        var dialog = new Dialogs.WhatsNewDialog(release)
+                        {
+                            XamlRoot = this.XamlRoot
+                        };
+                        await dialog.ShowAsync();
+                        // Only persist after the user has actually seen the dialog
+                        Services.SettingsService.LastSeenVersion = release.TagName;
+                    }
+                    catch { /* dialog already open or XamlRoot not ready — skip silently */ }
+                    finally { tcs.TrySetResult(); }
+                });
+                await tcs.Task;
+            }
+            catch { /* network unavailable or any other error — fail silently */ }
         }
 
         /// <summary>Directly applies smooth scrolling to all ScrollViewers owned by MainPage,

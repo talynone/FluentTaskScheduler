@@ -131,6 +131,19 @@ namespace FluentTaskScheduler
             MainPage.Current?.ApplySmoothScrollingSelf(enable);
         }
 
+        private async void VersionButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Fetch on demand — reuse the same service as the startup check
+            var release = await Services.GitHubReleaseService.GetLatestReleaseAsync();
+            if (release == null)
+            {
+                await ShowDialog("What's New", "Could not fetch release notes. Check your internet connection and try again.");
+                return;
+            }
+            var dialog = new Dialogs.WhatsNewDialog(release) { XamlRoot = this.XamlRoot };
+            await dialog.ShowAsync();
+        }
+
         private void OpenLogButton_Click(object sender, RoutedEventArgs e)
         {
             LogService.OpenLogFile();

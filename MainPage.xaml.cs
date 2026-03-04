@@ -205,7 +205,7 @@ namespace FluentTaskScheduler
             }
         }
 
-        private static T FindParent<T>(DependencyObject child) where T : DependencyObject
+        private static T? FindParent<T>(DependencyObject child) where T : DependencyObject
         {
             var parent = VisualTreeHelper.GetParent(child);
             if (parent == null) return null;

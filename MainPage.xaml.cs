@@ -205,6 +205,14 @@ namespace FluentTaskScheduler
             }
         }
 
+        private static T FindParent<T>(DependencyObject child) where T : DependencyObject
+        {
+            var parent = VisualTreeHelper.GetParent(child);
+            if (parent == null) return null;
+            if (parent is T match) return match;
+            return FindParent<T>(parent);
+        }
+
         private void Page_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateFolderTreeMaxHeight();
 
 
@@ -1011,15 +1019,137 @@ namespace FluentTaskScheduler
                 : $"Sort {arrow} {ViewModel.SortColumn}";
         }
 
+        private async void ReloadFolders_Click(object sender, RoutedEventArgs e)
+        {
+            FolderRefreshIcon.Visibility = Visibility.Collapsed;
+            FolderRefreshRing.Visibility = Visibility.Visible;
+            FolderRefreshRing.IsActive = true;
+
+            await Task.Run(() => 
+            {
+                DispatcherQueue.TryEnqueue(() => LoadFolderStructure());
+            });
+
+            await Task.Delay(300); // Give a little visual feedback
+
+            FolderRefreshRing.IsActive = false;
+            FolderRefreshRing.Visibility = Visibility.Collapsed;
+            FolderRefreshIcon.Visibility = Visibility.Visible;
+        }
+
+        private void CreateRootFolder_Click(object sender, RoutedEventArgs e)
+        {
+            CreateFolder_Click("\\");
+        }
+
+        private void FolderTreeViewItem_RightTapped(object sender, RightTappedRoutedEventArgs e)
+        {
+            var fe = e.OriginalSource as FrameworkElement;
+            if (fe == null) return;
+            
+            var tvi = FindParent<TreeViewItem>(fe);
+            if (tvi != null)
+            {
+                var node = FolderTreeView.NodeFromContainer(tvi);
+                if (node != null && _treeNodeFolderMap.TryGetValue(node, out var folder))
+                {
+                    ShowFolderContextMenu(fe, e.GetPosition(fe), folder);
+                }
+            }
+        }
+
+        private void ShowFolderContextMenu(FrameworkElement targetElement, Windows.Foundation.Point position, TaskFolderModel folder)
+        {
+            var flyout = new MenuFlyout();
+
+            var newFolderItem = new MenuFlyoutItem { Text = "New Subfolder", Icon = new SymbolIcon(Symbol.Add) };
+            newFolderItem.Click += (s, args) => CreateFolder_Click(folder.Path);
+            flyout.Items.Add(newFolderItem);
+
+            if (folder.Path != "\\")
+            {
+                var renameItem = new MenuFlyoutItem { Text = "Rename", Icon = new SymbolIcon(Symbol.Rename) };
+                renameItem.Click += (s, args) => RenameFolder_Click(folder.Path, folder.Name);
+                flyout.Items.Add(renameItem);
+
+                var deleteItem = new MenuFlyoutItem { Text = "Delete", Icon = new SymbolIcon(Symbol.Delete) };
+                deleteItem.Click += (s, args) => DeleteFolder_Click(folder.Path);
+                flyout.Items.Add(deleteItem);
+            }
+
+            flyout.ShowAt(targetElement, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions { Position = position });
+        }
+
         private async void CreateFolder_Click(string parentPath)
         {
             var dialog = new ContentDialog { Title="New Folder", Content=new TextBox{PlaceholderText="Name"}, PrimaryButtonText="Create", CloseButtonText="Cancel", DefaultButton=ContentDialogButton.Primary, XamlRoot=this.XamlRoot };
-            if (await dialog.ShowAsync() == ContentDialogResult.Primary && dialog.Content is TextBox tb && !string.IsNullOrWhiteSpace(tb.Text)) { try { ViewModel.TaskService.CreateFolder(parentPath == "\\" ? "\\" + tb.Text : parentPath + "\\" + tb.Text); LoadFolderStructure(); } catch (Exception ex) { await ShowErrorDialog(ex.Message); } }
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary && dialog.Content is TextBox tb && !string.IsNullOrWhiteSpace(tb.Text)) 
+            { 
+                try 
+                { 
+                    ViewModel.TaskService.CreateFolder(parentPath == "\\" ? "\\" + tb.Text : parentPath + "\\" + tb.Text); 
+                    LoadFolderStructure(); 
+                } 
+                catch (Exception ex) 
+                { 
+                    await ShowErrorDialog(ex.Message); 
+                } 
+            }
         }
+
+        private async void RenameFolder_Click(string path, string oldName)
+        {
+            var tb = new TextBox { Text = oldName, PlaceholderText = "New Name" };
+            tb.SelectAll();
+            
+            var dialog = new ContentDialog 
+            { 
+                Title = "Rename Folder", 
+                Content = tb, 
+                PrimaryButtonText = "Rename", 
+                CloseButtonText = "Cancel", 
+                DefaultButton = ContentDialogButton.Primary, 
+                XamlRoot = this.XamlRoot 
+            };
+            
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(tb.Text) && tb.Text != oldName) 
+            { 
+                try 
+                { 
+                    ViewModel.TaskService.RenameFolder(path, tb.Text); 
+                    LoadFolderStructure(); 
+                    
+                    if (_currentFolderPath.StartsWith(path, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _currentFolderPath = "\\";
+                        ViewModel.SetFilter("all");
+                        NavView.SelectedItem = NavView.FooterMenuItems[0];
+                    }
+                } 
+                catch (Exception ex) 
+                { 
+                    await ShowErrorDialog(ex.Message); 
+                } 
+            }
+        }
+
         private async void DeleteFolder_Click(string path)
         {
-            var dialog = new ContentDialog { Title="Delete Folder", Content=$"Delete '{path}'?", PrimaryButtonText="Delete", CloseButtonText="Cancel", DefaultButton=ContentDialogButton.Close, XamlRoot=this.XamlRoot };
-            if (await dialog.ShowAsync() == ContentDialogResult.Primary) { try { ViewModel.TaskService.DeleteFolder(path); LoadFolderStructure(); ViewModel.SetFilter("all"); } catch (Exception ex) { await ShowErrorDialog(ex.Message); } }
+            var dialog = new ContentDialog { Title="Delete Folder", Content=$"Delete '{path}' and ALL tasks in it?", PrimaryButtonText="Delete", CloseButtonText="Cancel", DefaultButton=ContentDialogButton.Close, XamlRoot=this.XamlRoot };
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary) 
+            { 
+                try 
+                { 
+                    ViewModel.TaskService.DeleteFolder(path); 
+                    LoadFolderStructure(); 
+                    ViewModel.SetFilter("all"); 
+                    NavView.SelectedItem = NavView.FooterMenuItems[0]; 
+                } 
+                catch (Exception ex) 
+                { 
+                    await ShowErrorDialog(ex.Message); 
+                } 
+            }
         }
 
         private bool _isDialogOpen = false;

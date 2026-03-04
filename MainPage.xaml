@@ -39,13 +39,27 @@
             <NavigationView.PaneCustomContent>
                 <StackPanel>
                     <StackPanel x:Name="FolderSection" Visibility="{x:Bind NavView.IsPaneOpen, Mode=OneWay}">
-                        <TextBlock Text="Folders" 
-                                  FontWeight="SemiBold" 
-                                  Margin="10,5,0,4"
-                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        <Grid Margin="10,5,10,4">
+                            <TextBlock Text="Folders" 
+                                      FontWeight="SemiBold" 
+                                      VerticalAlignment="Center"
+                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4">
+                                <Button x:Name="FolderRefreshBtn" Padding="4" Background="Transparent" BorderThickness="0" Click="ReloadFolders_Click" ToolTipService.ToolTip="Reload Folders">
+                                    <Grid Width="16" Height="16">
+                                        <SymbolIcon x:Name="FolderRefreshIcon" Symbol="Refresh" />
+                                        <ProgressRing x:Name="FolderRefreshRing" Width="14" Height="14" IsActive="False" Visibility="Collapsed" />
+                                    </Grid>
+                                </Button>
+                                <Button x:Name="FolderCreateBtn" Padding="4" Background="Transparent" BorderThickness="0" Click="CreateRootFolder_Click" ToolTipService.ToolTip="New Folder">
+                                    <SymbolIcon Symbol="Add" />
+                                </Button>
+                            </StackPanel>
+                        </Grid>
                         <TreeView x:Name="FolderTreeView" 
                                   SelectionMode="Single"
                                   ItemInvoked="FolderTreeView_ItemInvoked"
+                                  RightTapped="FolderTreeViewItem_RightTapped"
                                   Margin="4,0,0,8">
                             <TreeView.ItemContainerTransitions>
                                 <TransitionCollection>
@@ -56,7 +70,7 @@
                             </TreeView.ItemContainerTransitions>
                             <TreeView.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Height="27" Padding="0">
+                                    <Grid Height="27" Padding="0" Background="Transparent">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>

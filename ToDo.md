@@ -1,9 +1,9 @@
 # To Do:
-1. 
-2. Folder management UI (create, rename, delete task folders)
-   **_More TBD_**
+
+1. **_More TBD_**
 
 # Done for next release:
+
 1. Add Notification when closing to tray
 2. Change Close to Tray to disable by default
 3. Add Setting to enable / disable smooth scrolling (disable by default)
@@ -18,3 +18,4 @@
 12. Animated status indicator for currently-running tasks
 13. "What's New" changelog popup after update
 14. Onboarding walkthrough for first launch
+15. Folder management UI (create, rename, delete task folders)

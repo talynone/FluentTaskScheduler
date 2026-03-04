@@ -588,22 +588,24 @@ namespace FluentTaskScheduler.Services
 
             try
             {
-                return ts.GetFolder(folderPath);
+                var folder = ts.GetFolder(folderPath);
+                if (folder != null) return folder;
             }
-            catch (System.IO.FileNotFoundException)
+            catch (System.IO.FileNotFoundException) { }
+            catch (Exception ex) { throw new Exception($"Failed to check folder '{folderPath}': {ex.Message}"); }
+
+            int lastSlash = folderPath.LastIndexOf('\\');
+            string parentPath = lastSlash > 0 ? folderPath.Substring(0, lastSlash) : "\\";
+            string folderName = folderPath.Substring(lastSlash + 1);
+
+            TaskFolder parentFolder = GetOrCreateFolder(ts, parentPath);
+            try
             {
-                try
-                {
-                    return ts.RootFolder.CreateFolder(folderPath);
-                }
-                catch
-                {
-                    throw new Exception($"Target folder '{folderPath}' does not exist and could not be created.");
-                }
+                return parentFolder.CreateFolder(folderName);
             }
             catch (Exception ex)
             {
-                throw new Exception($"Failed to access target folder '{folderPath}': {ex.Message}");
+                throw new Exception($"Failed to create folder '{folderName}' in '{parentPath}': {ex.Message}");
             }
         }
 
@@ -865,10 +867,25 @@ namespace FluentTaskScheduler.Services
                 var folder = ts.GetFolder(path);
                 if (folder != null && folder.Path != "\\")
                 {
+                   DeleteFolderRecursive(folder);
                    folder.Parent?.DeleteFolder(folder.Name);
                 }
             }
         }
+
+        private void DeleteFolderRecursive(TaskFolder folder)
+        {
+            foreach (var task in folder.Tasks)
+            {
+                folder.DeleteTask(task.Name);
+            }
+            foreach (var sub in folder.SubFolders)
+            {
+                DeleteFolderRecursive(sub);
+                folder.DeleteFolder(sub.Name);
+            }
+        }
+
         public void RegisterTaskFromXml(string folderPath, string name, string xml)
         {
             using (var ts = new TaskService())
@@ -877,6 +894,56 @@ namespace FluentTaskScheduler.Services
                 td.XmlText = xml;
                 var folder = GetOrCreateFolder(ts, folderPath);
                 folder.RegisterTaskDefinition(name, td, TaskCreation.CreateOrUpdate, null, null, TaskLogonType.InteractiveToken);
+            }
+        }
+
+        public void RenameFolder(string oldPath, string newName)
+        {
+            using (var ts = new TaskService())
+            {
+                var oldFolder = ts.GetFolder(oldPath);
+                if (oldFolder == null || oldFolder.Path == "\\")
+                    throw new Exception("Cannot rename the system root folder.");
+
+                string parentPath = oldFolder.Parent?.Path ?? "\\";
+                string newPath = parentPath == "\\" ? "\\" + newName : parentPath + "\\" + newName;
+
+                try { if (ts.GetFolder(newPath) != null) throw new Exception($"A folder named '{newName}' already exists."); } catch (System.IO.FileNotFoundException) { }
+
+                var newFolder = GetOrCreateFolder(ts, newPath);
+                CopyFolderContents(ts, oldFolder, newFolder);
+                DeleteFolderRecursive(oldFolder);
+                oldFolder.Parent?.DeleteFolder(oldFolder.Name);
+            }
+        }
+
+        private void CopyFolderContents(TaskService ts, TaskFolder sourceFolder, TaskFolder targetFolder)
+        {
+            foreach (var task in sourceFolder.Tasks)
+            {
+                try
+                {
+                    targetFolder.RegisterTaskDefinition(task.Name, task.Definition);
+                }
+                catch (Exception ex)
+                {
+                    if (IsAccessDenied(ex))
+                    {
+                        var td = ts.NewTask();
+                        td.XmlText = task.Xml;
+                        targetFolder.RegisterTaskDefinition(task.Name, td, TaskCreation.CreateOrUpdate, null, null, TaskLogonType.InteractiveToken);
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error copying task '{task.Name}': {ex.Message}");
+                    }
+                }
+            }
+
+            foreach (var sub in sourceFolder.SubFolders)
+            {
+                var newSub = targetFolder.CreateFolder(sub.Name);
+                CopyFolderContents(ts, sub, newSub);
             }
         }
     }

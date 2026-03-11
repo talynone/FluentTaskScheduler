@@ -40,14 +40,8 @@ jobs:
           -p:IncludeNativeLibrariesForSelfExtract=true
           -p:IncludeAllContentForSelfExtract=true
 
-      - name: Zip build output
-        shell: pwsh
-        run: |
-          $publishDir = "bin/${{ matrix.platform }}/Release/net8.0-windows10.0.19041.0/${{ matrix.rid }}"
-          Compress-Archive -Path (Get-ChildItem -Path $publishDir) -DestinationPath "FluentTaskScheduler-${{ matrix.rid }}.zip"
-
       - name: Upload artifact
         uses: actions/upload-artifact@v5
         with:
           name: FluentTaskScheduler-${{ matrix.rid }}
-          path: FluentTaskScheduler-${{ matrix.rid }}.zip
+          path: bin/${{ matrix.platform }}/Release/net8.0-windows10.0.19041.0/${{ matrix.rid }}/
